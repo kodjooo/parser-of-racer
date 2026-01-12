@@ -1,13 +1,11 @@
+.env
+credentials.json
 .venv/
 __pycache__/
+*.pyc
 .pytest_cache/
 .mypy_cache/
+logs/
+data/
 .DS_Store
-.env
-logs/*
-!logs/.gitkeep
 .cursor/
-app/google-credentials.json
-
-# ignore local email processor workspace
-email-processor/

@@ -1,7 +1,11 @@
 services:
-  publisher:
+  race-monitor:
     build: .
+    container_name: race-monitor
     env_file:
       - .env
     volumes:
+      - ./data:/app/data
       - ./logs:/app/logs
+      - ./credentials.json:/app/credentials.json:ro
+    command: ["python", "-m", "app.main"]
