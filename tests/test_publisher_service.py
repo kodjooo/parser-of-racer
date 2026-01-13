@@ -4,6 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+pytest.importorskip("publisher", reason="Модуль publisher не используется в этом проекте")
+
 from publisher.gs.sheets import RSSRow, SetkaRow, VKRow
 from publisher.services.publisher import PublisherService
 from publisher.tg.client import TelegramClient

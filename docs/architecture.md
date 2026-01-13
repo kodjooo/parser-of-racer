@@ -32,6 +32,8 @@ Docker
 - Один сервис race-monitor в docker-compose.yml.
 - Тома для data/ и logs/ подключаются как volume.
 - credentials.json монтируется read-only.
+- Базовый образ Docker: mcr.microsoft.com/playwright/python:v1.46.0-jammy (включает Chromium).
+- В образ копируются тесты для запуска pytest внутри контейнера.
 
 Обновления по этапам плана
 - Этап 1: зафиксирована структура проекта и Docker-конфигурация.
