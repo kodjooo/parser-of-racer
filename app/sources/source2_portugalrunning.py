@@ -98,8 +98,9 @@ def scrape_source2(
             for detail_href in detail_links:
                 detail_absolute = urljoin(detail_page.url, detail_href)
                 normalized = normalize_url(detail_absolute)
-                logger.debug("Итоговая ссылка события: %s", detail_absolute)
-                results.setdefault(normalized, detail_absolute)
+                if normalized not in results:
+                    logger.debug("Итоговая ссылка события: %s", detail_absolute)
+                    results[normalized] = detail_absolute
             detail_page.close()
 
         if index == 12:
