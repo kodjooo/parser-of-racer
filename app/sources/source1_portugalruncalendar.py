@@ -52,14 +52,18 @@ def scrape_source1(
 
     use_button_pagination = bool(next_button_selector.strip())
 
-    def _collect_links() -> None:
+    def _collect_links() -> tuple[int, int]:
         links = _extract_event_links(page, event_selector)
         if not links:
             logger.warning("Не найдены ссылки событий на странице %s", page.url)
+        added = 0
         for href in links:
             absolute = urljoin(page.url, href)
             normalized = normalize_url(absolute)
-            results.setdefault(normalized, absolute)
+            if normalized not in results:
+                results[normalized] = absolute
+                added += 1
+        return len(links), added
 
     if not use_button_pagination:
         logger.error("SOURCE1_NEXT_BUTTON_SELECTOR не задан, пагинация недоступна")
@@ -81,9 +85,13 @@ def scrape_source1(
             break
         last_marker = marker_before
         logger.debug("Страница %s, маркер списка до клика: %s", page_index, marker_before)
-        links_before = len(results)
-        _collect_links()
-        logger.debug("Страница %s, найдено ссылок: %s", page_index, len(results) - links_before)
+        raw_count, added_count = _collect_links()
+        logger.debug(
+            "Страница %s, ссылок в DOM: %s, добавлено уникальных: %s",
+            page_index,
+            raw_count,
+            added_count,
+        )
 
         next_button = page.locator(next_button_selector)
         count = next_button.count()
