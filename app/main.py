@@ -61,6 +61,7 @@ def main() -> int:
                     context,
                     config.source1_url,
                     config.source1_event_links,
+                    config.source1_pagination_selectors,
                     config.timeout_ms,
                     config.max_pagination_pages,
                     logger,

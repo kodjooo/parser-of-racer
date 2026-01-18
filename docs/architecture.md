@@ -8,7 +8,7 @@
 Компоненты
 - app/main.py: оркестрация пайплайна, логирование, обработка ошибок, выходной код.
 - app/config.py: загрузка и валидация конфигурации из .env.
-- app/sources/: парсинг источников с Playwright (две независимые реализации), для portugalrunning.com обход ссылок месяца и заход в карточки, ожидание смены месяца по #evcal_cur (polling 10 секунд, ретраи с паузой 10 секунд, debug-лог маркеров и новых итоговых ссылок) с fallback на изменение списка ссылок.
+- app/sources/: парсинг источников с Playwright (две независимые реализации), для portugalruncalendar.com пагинация настраивается через SOURCE1_PAGINATION_SELECTORS, для portugalrunning.com обход ссылок месяца и заход в карточки, ожидание смены месяца по #evcal_cur (polling 10 секунд, ретраи с паузой 10 секунд, debug-лог маркеров и новых итоговых ссылок) с fallback на изменение списка ссылок.
 - app/integrations/sheets.py: чтение URL из Google Sheets через gspread.
 - app/integrations/telegram.py: формирование и отправка уведомлений с чанками через Telethon.
 - app/integrations/state.py: хранение notified_store в JSON и очистка.

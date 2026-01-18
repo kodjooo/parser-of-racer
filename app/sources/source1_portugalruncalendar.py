@@ -27,17 +27,7 @@ def _extract_event_links(page, selector_primary: str) -> list[str]:
     return []
 
 
-def _discover_pagination_links(page) -> list[str]:
-    selectors = [
-        "nav[aria-label*='Pagination'] a[href]",
-        "nav[aria-label*='pagination'] a[href]",
-        "ul[role='navigation'] a[href]",
-        "a[rel='next']",
-        "a[rel='prev']",
-        "a[aria-label*='Next']",
-        "a[aria-label*='Previous']",
-        "a[href*='page=']",
-    ]
+def _discover_pagination_links(page, selectors: list[str]) -> list[str]:
     links: list[str] = []
     for selector in selectors:
         locator = page.locator(selector)
@@ -52,6 +42,7 @@ def scrape_source1(
     context: BrowserContext,
     base_url: str,
     event_selector: str,
+    pagination_selectors: str,
     timeout_ms: int,
     max_pages: int,
     logger: logging.Logger,
@@ -65,6 +56,8 @@ def scrape_source1(
 
     def _goto(url: str) -> None:
         page.goto(url, wait_until="networkidle")
+
+    selectors = [value.strip() for value in pagination_selectors.split(",") if value.strip()]
 
     while queue and len(visited) < max_pages:
         current = queue.pop(0)
@@ -87,7 +80,7 @@ def scrape_source1(
             normalized = normalize_url(absolute)
             results.setdefault(normalized, absolute)
 
-        pagination_links = _discover_pagination_links(page)
+        pagination_links = _discover_pagination_links(page, selectors)
         for href in pagination_links:
             absolute = urljoin(page.url, href)
             normalized = normalize_url(absolute)
