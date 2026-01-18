@@ -98,7 +98,12 @@ def scrape_source2(
                 raise RuntimeError("Не удалось дождаться смены месяца")
 
         try:
-            run_with_retries(_wait_for_change, logger=logger, action_name="ожидание смены месяца")
+            run_with_retries(
+                _wait_for_change,
+                logger=logger,
+                action_name="ожидание смены месяца",
+                delays=(10.0, 10.0, 10.0),
+            )
         except Exception:
             logger.warning("Переход месяца может быть неочевиден, продолжаем")
 
