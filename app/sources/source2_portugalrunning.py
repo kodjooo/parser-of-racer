@@ -40,6 +40,16 @@ def _get_month_marker(page) -> str:
     return ""
 
 
+def _get_all_month_markers(page) -> list[str]:
+    locator = page.locator("#evcal_cur")
+    markers: list[str] = []
+    for idx in range(locator.count()):
+        text = locator.nth(idx).inner_text().strip()
+        if text:
+            markers.append(text)
+    return markers
+
+
 def scrape_source2(
     context: BrowserContext,
     base_url: str,
@@ -70,6 +80,7 @@ def scrape_source2(
 
         marker_before = _get_month_marker(page)
         links_before = set(_extract_month_links(page, list_selector, link_selector))
+        logger.debug("Маркер месяца до клика: %s", marker_before)
 
         def _click_next() -> None:
             page.click(next_button_selector)
@@ -80,17 +91,21 @@ def scrape_source2(
             try:
                 page.wait_for_function(
                     "(selector, previous) => {"
-                    "const el = document.querySelector(selector);"
-                    "if (!el) { return false; }"
+                    "const elements = Array.from(document.querySelectorAll(selector));"
+                    "if (!elements.length) { return false; }"
+                    "return elements.some((el) => {"
                     "const text = (el.textContent || '').trim();"
                     "return text && text !== previous;"
+                    "});"
                     "}",
                     arg=["#evcal_cur", marker_before],
                     timeout=10000,
                 )
+                logger.debug("Маркер месяца после клика: %s", _get_month_marker(page))
                 return
             except Exception:
-                pass
+                markers = _get_all_month_markers(page)
+                logger.debug("Маркер месяца не изменился, текущие значения: %s", markers)
 
             page.wait_for_timeout(800)
             links_after = set(_extract_month_links(page, list_selector, link_selector))
