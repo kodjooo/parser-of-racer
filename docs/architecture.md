@@ -10,7 +10,7 @@
 - app/config.py: загрузка и валидация конфигурации из .env.
 - app/sources/: парсинг источников с Playwright (две независимые реализации), ожидание смены месяца по #evcal_cur (таймаут 10 секунд, ретраи с паузой 10 секунд) с fallback на изменение списка ссылок.
 - app/integrations/sheets.py: чтение URL из Google Sheets через gspread.
-- app/integrations/telegram.py: формирование и отправка уведомлений с чанками.
+- app/integrations/telegram.py: формирование и отправка уведомлений с чанками через Telethon.
 - app/integrations/state.py: хранение notified_store в JSON и очистка.
 - app/integrations/url_normalize.py: нормализация URL для дедупликации.
 - app/utils/retry.py: ретраи сетевых операций.
@@ -21,7 +21,7 @@
 3) Загрузка notified_store -> notified_set.
 4) Парсинг источников -> карты {normalized: original}.
 5) Вычисление to_notify по каждому источнику.
-6) Формирование сообщений и отправка в Telegram (или DRY_RUN).
+6) Формирование сообщений и отправка в Telegram (Telethon, или DRY_RUN).
 7) Обновление notified_store и очистка известных URL.
 
 Хранилище состояния

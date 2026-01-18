@@ -128,7 +128,14 @@ def main() -> int:
         return 1 if source_errors else 0
 
     for chunk in chunks:
-        send_message(config.telegram_bot_token, config.telegram_chat_id, chunk, logger)
+        send_message(
+            config.telegram_api_id,
+            config.telegram_api_hash,
+            config.telegram_session_path,
+            config.telegram_target,
+            chunk,
+            logger,
+        )
 
     for source_name, to_notify in to_notify_map.items():
         if to_notify:

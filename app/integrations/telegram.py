@@ -1,7 +1,8 @@
+import asyncio
 import logging
 from collections.abc import Iterable
 
-import requests
+from telethon import TelegramClient
 
 from app.utils.retry import run_with_retries
 
@@ -33,20 +34,19 @@ def chunk_lines(lines: Iterable[str], max_chars: int) -> list[str]:
 
 
 def send_message(
-    token: str,
-    chat_id: str,
+    api_id: int,
+    api_hash: str,
+    session_path: str,
+    target: str,
     text: str,
     logger: logging.Logger,
 ) -> None:
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
+    async def _send() -> None:
+        async with TelegramClient(session_path, api_id, api_hash) as client:
+            await client.send_message(target, text, link_preview=False)
 
     def _action() -> None:
-        response = requests.post(url, data=payload, timeout=30)
-        if response.status_code == 429:
-            raise RuntimeError("Превышен лимит Telegram")
-        if not response.ok:
-            raise RuntimeError(f"Ошибка Telegram: {response.status_code} {response.text}")
-        logger.info("Telegram ответ: %s", response.text)
+        asyncio.run(_send())
+        logger.info("Сообщение отправлено через Telethon")
 
     run_with_retries(_action, logger=logger, action_name="отправка Telegram")

@@ -21,8 +21,10 @@ class Config:
     worksheet_name: str
     url_column: str
     google_credentials_path: str
-    telegram_bot_token: str
-    telegram_chat_id: str
+    telegram_api_id: int
+    telegram_api_hash: str
+    telegram_target: str
+    telegram_session_path: str
     run_headless: bool
     timeout_ms: int
     user_agent: str | None
@@ -46,8 +48,9 @@ REQUIRED_ENV = [
     "WORKSHEET_NAME",
     "URL_COLUMN",
     "GOOGLE_CREDENTIALS_PATH",
-    "TELEGRAM_BOT_TOKEN",
-    "TELEGRAM_CHAT_ID",
+    "TELEGRAM_API_ID",
+    "TELEGRAM_API_HASH",
+    "TELEGRAM_TARGET",
 ]
 
 
@@ -64,8 +67,10 @@ def load_config() -> Config:
         worksheet_name=os.environ["WORKSHEET_NAME"],
         url_column=os.environ["URL_COLUMN"],
         google_credentials_path=os.environ["GOOGLE_CREDENTIALS_PATH"],
-        telegram_bot_token=os.environ["TELEGRAM_BOT_TOKEN"],
-        telegram_chat_id=os.environ["TELEGRAM_CHAT_ID"],
+        telegram_api_id=int(os.environ["TELEGRAM_API_ID"]),
+        telegram_api_hash=os.environ["TELEGRAM_API_HASH"],
+        telegram_target=os.environ["TELEGRAM_TARGET"],
+        telegram_session_path=os.getenv("TELEGRAM_SESSION_PATH", "./data/telegram.session"),
         run_headless=_parse_bool(os.getenv("RUN_HEADLESS"), True),
         timeout_ms=_parse_int(os.getenv("TIMEOUT_MS"), 30000),
         user_agent=os.getenv("USER_AGENT") or None,
