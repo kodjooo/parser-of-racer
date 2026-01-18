@@ -63,6 +63,8 @@ def scrape_source1(
             if normalized not in results:
                 results[normalized] = absolute
                 added += 1
+            else:
+                logger.debug("Дубликат после нормализации: %s", absolute)
         return len(links), added
 
     if not use_button_pagination:
