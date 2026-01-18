@@ -21,6 +21,6 @@ docker compose run --rm race-monitor
 ## Развертывание на сервере
 
 1. Установить Docker и Docker Compose на сервер.
-2. Склонировать репозиторий и подготовить `.env` и `credentials.json`.
+2. Склонировать репозиторий и подготовить `.env` и `google-credentials.json`.
 3. Запустить контейнер: `docker compose run --rm race-monitor`.
 4. Для расписания настроить cron на сервере, который будет выполнять команду из пункта 3 каждые 2 дня.

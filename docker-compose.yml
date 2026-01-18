@@ -7,5 +7,5 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-      - ./credentials.json:/app/credentials.json:ro
+      - ./google-credentials.json:/app/google-credentials.json:ro
     command: ["python", "-m", "app.main"]
