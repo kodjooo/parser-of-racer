@@ -37,6 +37,7 @@ class Config:
     source1_url: str
     source1_event_links: str
     source1_pagination_selectors: str
+    source1_next_button_selector: str
     source2_url: str
     source2_next_button: str
     source2_month_list_links: str
@@ -94,6 +95,10 @@ def load_config() -> Config:
             "a[aria-label*='Next'],"
             "a[aria-label*='Previous'],"
             "a[href*='page=']",
+        ),
+        source1_next_button_selector=os.getenv(
+            "SOURCE1_NEXT_BUTTON_SELECTOR",
+            "button:has-text(\"Próxima\")",
         ),
         source2_url=os.getenv(
             "SOURCE2_URL", "https://www.portugalrunning.com/calendario-de-corridas/"

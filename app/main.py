@@ -62,6 +62,7 @@ def main() -> int:
                     config.source1_url,
                     config.source1_event_links,
                     config.source1_pagination_selectors,
+                    config.source1_next_button_selector,
                     config.timeout_ms,
                     config.max_pagination_pages,
                     logger,
