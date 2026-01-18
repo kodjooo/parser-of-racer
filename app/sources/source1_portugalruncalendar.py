@@ -45,7 +45,6 @@ def scrape_source1(
     page = context.new_page()
     page.set_default_timeout(timeout_ms)
 
-    visited: set[str] = set()
     results: dict[str, str] = {}
 
     def _goto(url: str) -> None:
@@ -74,12 +73,13 @@ def scrape_source1(
         page.close()
         return results
 
+    last_marker = ""
     for _ in range(max_pages):
-        current_url = normalize_url(page.url)
-        if current_url in visited:
-            break
-        visited.add(current_url)
         marker_before = _get_first_event_marker(page, event_selector)
+        if marker_before and marker_before == last_marker:
+            logger.debug("Маркер списка не изменился, остановка пагинации")
+            break
+        last_marker = marker_before
         logger.debug("Маркер списка до клика: %s", marker_before)
         _collect_links()
 
@@ -108,8 +108,8 @@ def scrape_source1(
             logger.warning("Не удалось дождаться смены списка после Próxima")
             break
 
-    if len(visited) >= max_pages:
-        logger.warning("Достигнут лимит страниц пагинации: %s", max_pages)
+    if max_pages <= 0:
+        logger.warning("MAX_PAGINATION_PAGES задан неверно: %s", max_pages)
 
     page.close()
     return results
