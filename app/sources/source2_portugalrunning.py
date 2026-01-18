@@ -21,6 +21,7 @@ def _extract_month_links(page, list_selector: str, link_selector: str) -> list[s
 
 def _get_month_marker(page) -> str:
     selectors = [
+        "#evcal_cur",
         ".eventon_fullcal .evo_month_title",
         ".eventon_fullcal .evcal_month_line",
         "#evcal_head",
@@ -68,6 +69,7 @@ def scrape_source2(
             break
 
         marker_before = _get_month_marker(page)
+        links_before = set(_extract_month_links(page, list_selector, link_selector))
 
         def _click_next() -> None:
             page.click(next_button_selector)
@@ -75,10 +77,24 @@ def scrape_source2(
         run_with_retries(_click_next, logger=logger, action_name="переход на следующий месяц")
 
         def _wait_for_change() -> None:
-            page.wait_for_timeout(500)
-            page.wait_for_load_state("networkidle")
-            marker_after = _get_month_marker(page)
-            if marker_after == marker_before:
+            try:
+                page.wait_for_function(
+                    "(selector, previous) => {"
+                    "const el = document.querySelector(selector);"
+                    "if (!el) { return false; }"
+                    "const text = (el.textContent || '').trim();"
+                    "return text && text !== previous;"
+                    "}",
+                    arg=["#evcal_cur", marker_before],
+                    timeout=timeout_ms,
+                )
+                return
+            except Exception:
+                pass
+
+            page.wait_for_timeout(800)
+            links_after = set(_extract_month_links(page, list_selector, link_selector))
+            if links_after == links_before:
                 raise RuntimeError("Не удалось дождаться смены месяца")
 
         try:

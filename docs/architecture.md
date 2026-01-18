@@ -8,7 +8,7 @@
 Компоненты
 - app/main.py: оркестрация пайплайна, логирование, обработка ошибок, выходной код.
 - app/config.py: загрузка и валидация конфигурации из .env.
-- app/sources/: парсинг источников с Playwright (две независимые реализации).
+- app/sources/: парсинг источников с Playwright (две независимые реализации), ожидание смены месяца по #evcal_cur с fallback на изменение списка ссылок.
 - app/integrations/sheets.py: чтение URL из Google Sheets через gspread.
 - app/integrations/telegram.py: формирование и отправка уведомлений с чанками.
 - app/integrations/state.py: хранение notified_store в JSON и очистка.
@@ -34,4 +34,3 @@ Docker
 - google-credentials.json монтируется read-only.
 - Базовый образ Docker: mcr.microsoft.com/playwright/python:v1.46.0-jammy (включает Chromium).
 - В образ копируются тесты для запуска pytest внутри контейнера.
-
