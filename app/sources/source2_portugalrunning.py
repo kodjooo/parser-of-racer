@@ -2,7 +2,7 @@ import logging
 import time
 from urllib.parse import urljoin
 
-from playwright.sync_api import BrowserContext
+from playwright.sync_api import BrowserContext, TimeoutError as PlaywrightTimeoutError, TargetClosedError
 
 from app.integrations.url_normalize import normalize_url
 from app.utils.retry import run_with_retries
@@ -74,7 +74,16 @@ def scrape_source2(
     page = context.new_page()
     page.set_default_timeout(timeout_ms)
 
-    run_with_retries(lambda: page.goto(base_url, wait_until="networkidle"), logger=logger, action_name="загрузка календаря")
+    def _open_calendar() -> None:
+        nonlocal page
+        try:
+            page.goto(base_url, wait_until="networkidle")
+        except (TargetClosedError, PlaywrightTimeoutError):
+            page = context.new_page()
+            page.set_default_timeout(timeout_ms)
+            page.goto(base_url, wait_until="networkidle")
+
+    run_with_retries(_open_calendar, logger=logger, action_name="загрузка календаря")
     page.wait_for_selector(next_button_selector)
 
     results: dict[str, str] = {}
