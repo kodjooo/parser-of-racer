@@ -80,10 +80,16 @@ def scrape_source1(
             break
         visited.add(current_url)
         marker_before = _get_first_event_marker(page, event_selector)
+        logger.debug("Маркер списка до клика: %s", marker_before)
         _collect_links()
 
         next_button = page.locator(next_button_selector)
-        if next_button.count() == 0:
+        count = next_button.count()
+        if count == 0:
+            logger.debug("Кнопка Próxima не найдена на странице: %s", page.url)
+            break
+        if next_button.first.is_disabled():
+            logger.debug("Кнопка Próxima отключена на странице: %s", page.url)
             break
 
         def _click_next() -> None:
@@ -95,6 +101,7 @@ def scrape_source1(
         while time.monotonic() < deadline:
             marker_after = _get_first_event_marker(page, event_selector)
             if marker_after and marker_after != marker_before:
+                logger.debug("Маркер списка после клика: %s", marker_after)
                 break
             page.wait_for_timeout(500)
         else:
