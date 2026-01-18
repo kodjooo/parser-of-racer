@@ -74,14 +74,16 @@ def scrape_source1(
         return results
 
     last_marker = ""
-    for _ in range(max_pages):
+    for page_index in range(1, max_pages + 1):
         marker_before = _get_first_event_marker(page, event_selector)
         if marker_before and marker_before == last_marker:
             logger.debug("Маркер списка не изменился, остановка пагинации")
             break
         last_marker = marker_before
-        logger.debug("Маркер списка до клика: %s", marker_before)
+        logger.debug("Страница %s, маркер списка до клика: %s", page_index, marker_before)
+        links_before = len(results)
         _collect_links()
+        logger.debug("Страница %s, найдено ссылок: %s", page_index, len(results) - links_before)
 
         next_button = page.locator(next_button_selector)
         count = next_button.count()
