@@ -8,7 +8,7 @@
 Компоненты
 - app/main.py: оркестрация пайплайна, логирование, обработка ошибок, выходной код.
 - app/config.py: загрузка и валидация конфигурации из .env.
-- app/sources/: парсинг источников с Playwright (две независимые реализации), ожидание смены месяца по #evcal_cur с fallback на изменение списка ссылок.
+- app/sources/: парсинг источников с Playwright (две независимые реализации), ожидание смены месяца по #evcal_cur (таймаут 10 секунд) с fallback на изменение списка ссылок.
 - app/integrations/sheets.py: чтение URL из Google Sheets через gspread.
 - app/integrations/telegram.py: формирование и отправка уведомлений с чанками.
 - app/integrations/state.py: хранение notified_store в JSON и очистка.

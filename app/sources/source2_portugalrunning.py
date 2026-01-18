@@ -86,7 +86,7 @@ def scrape_source2(
                     "return text && text !== previous;"
                     "}",
                     arg=["#evcal_cur", marker_before],
-                    timeout=timeout_ms,
+                    timeout=10000,
                 )
                 return
             except Exception:
