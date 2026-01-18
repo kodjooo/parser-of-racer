@@ -8,7 +8,17 @@ from app.integrations.url_normalize import normalize_url
 from app.utils.retry import run_with_retries
 
 
-def _extract_month_links(page, list_selector: str, link_selector: str) -> list[str]:
+def _extract_month_listing_links(page, list_selector: str) -> list[str]:
+    locator = page.locator(list_selector)
+    links: list[str] = []
+    for idx in range(locator.count()):
+        href = locator.nth(idx).get_attribute("href")
+        if href:
+            links.append(href)
+    return links
+
+
+def _extract_detail_links(page, list_selector: str, link_selector: str) -> list[str]:
     links: list[str] = []
     list_locator = page.locator(list_selector)
     for idx in range(list_locator.count()):
@@ -55,6 +65,7 @@ def scrape_source2(
     context: BrowserContext,
     base_url: str,
     next_button_selector: str,
+    month_list_links_selector: str,
     list_selector: str,
     link_selector: str,
     timeout_ms: int,
@@ -68,19 +79,33 @@ def scrape_source2(
 
     results: dict[str, str] = {}
     for index in range(13):
-        links = _extract_month_links(page, list_selector, link_selector)
-        if not links:
-            logger.warning("Не найдены события в месяце %s", index + 1)
-        for href in links:
+        listing_links = _extract_month_listing_links(page, month_list_links_selector)
+        if not listing_links:
+            logger.warning("Не найдены ссылки карточек в месяце %s", index + 1)
+
+        for href in listing_links:
             absolute = urljoin(page.url, href)
-            normalized = normalize_url(absolute)
-            results.setdefault(normalized, absolute)
+            detail_page = context.new_page()
+            detail_page.set_default_timeout(timeout_ms)
+
+            def _open_detail() -> None:
+                detail_page.goto(absolute, wait_until="networkidle")
+
+            run_with_retries(_open_detail, logger=logger, action_name="загрузка карточки")
+            detail_links = _extract_detail_links(detail_page, list_selector, link_selector)
+            if not detail_links:
+                logger.warning("Не найдены ссылки событий в карточке %s", absolute)
+            for detail_href in detail_links:
+                detail_absolute = urljoin(detail_page.url, detail_href)
+                normalized = normalize_url(detail_absolute)
+                results.setdefault(normalized, detail_absolute)
+            detail_page.close()
 
         if index == 12:
             break
 
         marker_before = _get_month_marker(page)
-        links_before = set(_extract_month_links(page, list_selector, link_selector))
+        links_before = set(_extract_month_listing_links(page, month_list_links_selector))
         logger.debug("Маркер месяца до клика: %s", marker_before)
 
         def _click_next() -> None:
@@ -101,7 +126,7 @@ def scrape_source2(
             logger.debug("Маркер месяца не изменился, текущие значения: %s", markers)
 
             page.wait_for_timeout(800)
-            links_after = set(_extract_month_links(page, list_selector, link_selector))
+            links_after = set(_extract_month_listing_links(page, month_list_links_selector))
             if links_after == links_before:
                 raise RuntimeError("Не удалось дождаться смены месяца")
 

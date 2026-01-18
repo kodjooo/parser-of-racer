@@ -38,6 +38,7 @@ class Config:
     source1_event_links: str
     source2_url: str
     source2_next_button: str
+    source2_month_list_links: str
     source2_event_list: str
     source2_event_links: str
     max_pagination_pages: int
@@ -86,6 +87,10 @@ def load_config() -> Config:
             "SOURCE2_URL", "https://www.portugalrunning.com/calendario-de-corridas/"
         ),
         source2_next_button=os.getenv("SOURCE2_NEXT_BUTTON", "button#evcal_next"),
+        source2_month_list_links=os.getenv(
+            "SOURCE2_MONTH_LIST_LINKS",
+            "div.evo_events_list_box div.eventon_list_event a",
+        ),
         source2_event_list=os.getenv(
             "SOURCE2_EVENT_LIST", "div.eventon_events_list div.eventon_list_event"
         ),

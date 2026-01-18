@@ -75,6 +75,7 @@ def main() -> int:
                     context,
                     config.source2_url,
                     config.source2_next_button,
+                    config.source2_month_list_links,
                     config.source2_event_list,
                     config.source2_event_links,
                     config.timeout_ms,
