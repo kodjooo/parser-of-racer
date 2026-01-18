@@ -1,4 +1,5 @@
 import logging
+import time
 from urllib.parse import urljoin
 
 from playwright.sync_api import BrowserContext
@@ -88,24 +89,16 @@ def scrape_source2(
         run_with_retries(_click_next, logger=logger, action_name="переход на следующий месяц")
 
         def _wait_for_change() -> None:
-            try:
-                page.wait_for_function(
-                    "(selector, previous) => {"
-                    "const elements = Array.from(document.querySelectorAll(selector));"
-                    "if (!elements.length) { return false; }"
-                    "return elements.some((el) => {"
-                    "const text = (el.textContent || '').trim();"
-                    "return text && text !== previous;"
-                    "});"
-                    "}",
-                    arg=["#evcal_cur", marker_before],
-                    timeout=10000,
-                )
-                logger.debug("Маркер месяца после клика: %s", _get_month_marker(page))
-                return
-            except Exception:
-                markers = _get_all_month_markers(page)
-                logger.debug("Маркер месяца не изменился, текущие значения: %s", markers)
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                marker_after = _get_month_marker(page)
+                if marker_after and marker_after != marker_before:
+                    logger.debug("Маркер месяца после клика: %s", marker_after)
+                    return
+                page.wait_for_timeout(500)
+
+            markers = _get_all_month_markers(page)
+            logger.debug("Маркер месяца не изменился, текущие значения: %s", markers)
 
             page.wait_for_timeout(800)
             links_after = set(_extract_month_links(page, list_selector, link_selector))
