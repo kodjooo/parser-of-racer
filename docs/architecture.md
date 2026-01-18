@@ -38,3 +38,4 @@ Docker
 Локальный запуск
 - Используется virtualenv, зависимости из requirements.txt.
 - Требуется установить Chromium через Playwright.
+- Для запуска предусмотрен скрипт run_local.sh.

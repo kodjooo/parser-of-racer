@@ -21,12 +21,7 @@ docker compose run --rm race-monitor
 ## Локальный запуск (без Docker)
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-python -m playwright install chromium
-python -m app.main
+./run_local.sh
 ```
 
 ## Развертывание на сервере
