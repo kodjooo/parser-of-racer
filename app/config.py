@@ -36,7 +36,6 @@ class Config:
     source2_enabled: bool
     source1_url: str
     source1_event_links: str
-    source1_pagination_selectors: str
     source1_next_button_selector: str
     source2_url: str
     source2_next_button: str
@@ -85,17 +84,6 @@ def load_config() -> Config:
         source2_enabled=_parse_bool(os.getenv("SOURCE2_ENABLED"), True),
         source1_url=os.getenv("SOURCE1_URL", "https://portugalruncalendar.com"),
         source1_event_links=os.getenv("SOURCE1_EVENT_LINKS", "div.space-y-6 a.block.h-full"),
-        source1_pagination_selectors=os.getenv(
-            "SOURCE1_PAGINATION_SELECTORS",
-            "nav[aria-label*='Pagination'] a[href],"
-            "nav[aria-label*='pagination'] a[href],"
-            "ul[role='navigation'] a[href],"
-            "a[rel='next'],"
-            "a[rel='prev'],"
-            "a[aria-label*='Next'],"
-            "a[aria-label*='Previous'],"
-            "a[href*='page=']",
-        ),
         source1_next_button_selector=os.getenv(
             "SOURCE1_NEXT_BUTTON_SELECTOR",
             "button:has-text(\"Próxima\")",
