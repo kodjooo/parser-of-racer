@@ -28,6 +28,9 @@
 - Файл JSON по пути STATE_PATH (по умолчанию ./data/notified.json).
 - Ключи: нормализованные URL, значения: метаданные времени и источника.
 
+Нормализация URL
+- Удаляем протокол (http/https) и префикс www для повышения совпадений.
+
 Docker
 - Один сервис race-monitor в docker-compose.yml.
 - Тома для data/ и logs/ подключаются как volume.

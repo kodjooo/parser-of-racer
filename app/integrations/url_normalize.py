@@ -13,8 +13,9 @@ _MARKETING_PARAMS = {
 def normalize_url(raw_url: str) -> str:
     raw_url = raw_url.strip()
     parts = urlsplit(raw_url)
-    scheme = parts.scheme.lower()
     netloc = parts.netloc.lower()
+    if netloc.startswith("www."):
+        netloc = netloc[4:]
 
     path = re.sub(r"/{2,}", "/", parts.path)
     if path != "/" and path.endswith("/"):
@@ -32,4 +33,4 @@ def normalize_url(raw_url: str) -> str:
     query_pairs.sort(key=lambda pair: pair[0])
     query = urlencode(query_pairs, doseq=True)
 
-    return urlunsplit((scheme, netloc, path, query, ""))
+    return urlunsplit(("", netloc, path, query, ""))
