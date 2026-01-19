@@ -5,6 +5,12 @@ mkdir -p /app/logs
 
 target_hour=6
 target_minute=2
+run_startup="${RUN_SMOKE_ON_START:-true}"
+
+if [ "$run_startup" = "true" ]; then
+  echo "$(date -Is) Тестовый запуск при старте контейнера" >> /app/logs/cron.log
+  python -m app.main >> /app/logs/cron.log 2>&1 || true
+fi
 
 while true; do
   now_date=$(date +%F)

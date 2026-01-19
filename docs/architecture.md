@@ -39,6 +39,7 @@ Docker
 - Базовый образ Docker: mcr.microsoft.com/playwright/python:v1.46.0-jammy (включает Chromium).
 - В образ копируются тесты для запуска pytest внутри контейнера.
 - В контейнере запуск по расписанию 06:02 Europe/Lisbon реализован циклом ожидания в entrypoint.sh (без cron).
+- При старте контейнера выполняется тестовый запуск, управляется RUN_SMOKE_ON_START.
 
 Локальный запуск
 - Используется virtualenv, зависимости из requirements.txt.
