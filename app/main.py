@@ -142,13 +142,12 @@ def main() -> int:
         f"https://docs.google.com/spreadsheets/d/{config.sheet_id}"
         f"/edit#gid={missing_gid}"
     )
-    today_str = datetime.now().date().isoformat()
+    today_str = datetime.now().strftime("%d.%m.%Y")
     message_lines = [
         f"<b>{today_str}</b>",
-        "",
         f"<b>{total_missing}</b> races were found that aren't in our table.",
         "",
-        f"<a href=\"{sheet_link}\">View the full list</a> \ud83d\udc49",
+        f"\ud83d\udc49 <a href=\"{sheet_link}\">View the full list</a>",
     ]
     chunks = chunk_lines(message_lines, config.max_telegram_chars)
     if config.dry_run:
