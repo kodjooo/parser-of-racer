@@ -3,6 +3,7 @@ import logging
 from collections.abc import Iterable
 
 from telethon import TelegramClient
+from telethon.tl.types import PeerChannel, PeerChat
 
 from app.utils.retry import run_with_retries
 
@@ -41,9 +42,21 @@ def send_message(
     text: str,
     logger: logging.Logger,
 ) -> None:
+    def _resolve_target() -> PeerChat | PeerChannel | str:
+        if not target:
+            return target
+        if target.startswith("@"):
+            return target
+        if target.lstrip("-").isdigit():
+            chat_id = int(target)
+            if str(chat_id).startswith("-100"):
+                return PeerChannel(abs(chat_id))
+            return PeerChat(abs(chat_id))
+        return target
+
     async def _send() -> None:
         async with TelegramClient(session_path, api_id, api_hash) as client:
-            await client.send_message(target, text, link_preview=False)
+            await client.send_message(_resolve_target(), text, link_preview=False)
 
     def _action() -> None:
         asyncio.run(_send())
