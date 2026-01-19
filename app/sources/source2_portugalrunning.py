@@ -61,6 +61,29 @@ def _get_all_month_markers(page) -> list[str]:
     return markers
 
 
+def _dismiss_cookie_overlay(page, logger: logging.Logger) -> None:
+    selectors = [
+        "button:has-text('Accept')",
+        "button:has-text('I agree')",
+        "button:has-text('Aceitar')",
+        "button:has-text('Concordo')",
+        "button#fc-cta-consent",
+        "button.fc-cta-consent",
+        "button[aria-label='Accept']",
+        "button[aria-label='accept']",
+    ]
+    for selector in selectors:
+        locator = page.locator(selector)
+        if locator.count() == 0:
+            continue
+        try:
+            locator.first.click(timeout=2000)
+            logger.debug("Закрыт баннер cookies: %s", selector)
+            break
+        except Exception:
+            continue
+
+
 def scrape_source2(
     context: BrowserContext,
     base_url: str,
@@ -80,6 +103,7 @@ def scrape_source2(
         action_name="загрузка календаря",
     )
     page.wait_for_selector(next_button_selector)
+    _dismiss_cookie_overlay(page, logger)
 
     results: dict[str, str] = {}
     for index in range(13):
@@ -115,6 +139,7 @@ def scrape_source2(
         logger.debug("Маркер месяца до клика: %s", marker_before)
 
         def _click_next() -> None:
+            _dismiss_cookie_overlay(page, logger)
             page.click(next_button_selector)
 
         run_with_retries(_click_next, logger=logger, action_name="переход на следующий месяц")
