@@ -63,7 +63,8 @@ def send_message(
         else:
             client = TelegramClient(session_path, api_id, api_hash)
 
-        async with client:
+        await client.connect()
+        try:
             if not await client.is_user_authorized():
                 raise RuntimeError(
                     "Сессия Telegram не авторизована. Сначала выполните локальный вход и перенесите файл/строку сессии."
@@ -74,6 +75,8 @@ def send_message(
                 link_preview=False,
                 parse_mode="html",
             )
+        finally:
+            await client.disconnect()
 
     def _action() -> None:
         asyncio.run(_send())

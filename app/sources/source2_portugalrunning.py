@@ -83,6 +83,21 @@ def _dismiss_cookie_overlay(page, logger: logging.Logger) -> None:
         except Exception:
             continue
 
+    try:
+        page.evaluate(
+            "() => {"
+            "const root = document.querySelector('.fc-consent-root');"
+            "if (root) { root.remove(); }"
+            "const overlay = document.querySelector('.fc-dialog-overlay');"
+            "if (overlay) { overlay.remove(); }"
+            "const faq = document.querySelector('.fc-faq-icon');"
+            "if (faq) { faq.remove(); }"
+            "}"
+        )
+        logger.debug("Удален overlay cookies через JS")
+    except Exception:
+        pass
+
 
 def scrape_source2(
     context: BrowserContext,
