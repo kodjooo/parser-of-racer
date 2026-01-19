@@ -94,7 +94,7 @@ def main() -> int:
     for source_name, url_map in source_results.items():
         scraped_set = set(url_map.keys())
         new_candidates = scraped_set - known_urls
-        to_notify = new_candidates - notified_set
+        to_notify = new_candidates
         to_notify_map[source_name] = to_notify
 
         logger.info(
