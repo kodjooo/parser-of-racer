@@ -56,7 +56,12 @@ def send_message(
 
     async def _send() -> None:
         async with TelegramClient(session_path, api_id, api_hash) as client:
-            await client.send_message(_resolve_target(), text, link_preview=False)
+            await client.send_message(
+                _resolve_target(),
+                text,
+                link_preview=False,
+                parse_mode="html",
+            )
 
     def _action() -> None:
         asyncio.run(_send())
