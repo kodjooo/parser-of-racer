@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     TZ=Europe/Lisbon
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends cron tzdata \
+    && apt-get install -y --no-install-recommends tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

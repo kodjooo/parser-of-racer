@@ -3,14 +3,19 @@ set -euo pipefail
 
 mkdir -p /app/logs
 
-cat > /etc/cron.d/race-monitor <<'CRON'
-SHELL=/bin/sh
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+target_hour=6
+target_minute=2
 
-2 6 * * * root python -m app.main >> /app/logs/cron.log 2>&1
-CRON
+while true; do
+  now_date=$(date +%F)
+  now_time=$(date +%H:%M)
+  target_time=$(printf "%02d:%02d" "$target_hour" "$target_minute")
 
-chmod 0644 /etc/cron.d/race-monitor
-crontab /etc/cron.d/race-monitor
-
-cron -f
+  if [ "$now_time" = "$target_time" ]; then
+    echo "$(date -Is) Запуск по расписанию ${now_date} ${now_time}" >> /app/logs/cron.log
+    python -m app.main >> /app/logs/cron.log 2>&1 || true
+    sleep 60
+  else
+    sleep 20
+  fi
+done
