@@ -40,6 +40,7 @@ Docker
 - В образ копируются тесты для запуска pytest внутри контейнера.
 - В контейнере запуск по расписанию 06:02 Europe/Lisbon реализован циклом ожидания в entrypoint.sh (без cron).
 - При старте контейнера выполняется тестовый запуск, управляется RUN_SMOKE_ON_START.
+- Таймзона фиксируется в контейнере через TZ=Europe/Lisbon и noninteractive tzdata.
 
 Развертывание
 - Основной сценарий на сервере: git clone, настройка .env и google-credentials.json, затем docker compose up -d.
