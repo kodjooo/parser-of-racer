@@ -1,8 +1,10 @@
 import asyncio
 import logging
+import os
 from collections.abc import Iterable
 
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 from telethon.tl.types import PeerChannel, PeerChat
 
 from app.utils.retry import run_with_retries
@@ -38,6 +40,7 @@ def send_message(
     api_id: int,
     api_hash: str,
     session_path: str,
+    session_string: str | None,
     target: str,
     text: str,
     logger: logging.Logger,
@@ -55,7 +58,16 @@ def send_message(
         return target
 
     async def _send() -> None:
-        async with TelegramClient(session_path, api_id, api_hash) as client:
+        if session_string:
+            client = TelegramClient(StringSession(session_string), api_id, api_hash)
+        else:
+            client = TelegramClient(session_path, api_id, api_hash)
+
+        async with client:
+            if not await client.is_user_authorized():
+                raise RuntimeError(
+                    "Сессия Telegram не авторизована. Сначала выполните локальный вход и перенесите файл/строку сессии."
+                )
             await client.send_message(
                 _resolve_target(),
                 text,

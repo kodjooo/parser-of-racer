@@ -26,6 +26,7 @@ class Config:
     telegram_api_hash: str
     telegram_target: str
     telegram_session_path: str
+    telegram_session_string: str | None
     run_headless: bool
     timeout_ms: int
     user_agent: str | None
@@ -75,6 +76,7 @@ def load_config() -> Config:
         telegram_api_hash=os.environ["TELEGRAM_API_HASH"],
         telegram_target=os.environ["TELEGRAM_TARGET"],
         telegram_session_path=os.getenv("TELEGRAM_SESSION_PATH", "./data/telegram.session"),
+        telegram_session_string=os.getenv("TELEGRAM_SESSION_STRING") or None,
         run_headless=_parse_bool(os.getenv("RUN_HEADLESS"), True),
         timeout_ms=_parse_int(os.getenv("TIMEOUT_MS"), 30000),
         user_agent=os.getenv("USER_AGENT") or None,

@@ -161,6 +161,7 @@ def main() -> int:
             config.telegram_api_id,
             config.telegram_api_hash,
             config.telegram_session_path,
+            config.telegram_session_string,
             config.telegram_target,
             chunk,
             logger,
