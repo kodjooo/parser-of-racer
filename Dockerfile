@@ -2,7 +2,12 @@
 FROM mcr.microsoft.com/playwright/python:v1.46.0-jammy AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    TZ=Europe/Lisbon
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends cron tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -13,5 +18,6 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY app ./app
 COPY tests ./tests
+COPY entrypoint.sh /app/entrypoint.sh
 
-CMD ["python", "-m", "app.main"]
+CMD ["/app/entrypoint.sh"]

@@ -38,6 +38,7 @@ Docker
 - google-credentials.json монтируется read-only.
 - Базовый образ Docker: mcr.microsoft.com/playwright/python:v1.46.0-jammy (включает Chromium).
 - В образ копируются тесты для запуска pytest внутри контейнера.
+- В контейнере настроен cron на 06:02 Europe/Lisbon (cron запускает python -m app.main).
 
 Локальный запуск
 - Используется virtualenv, зависимости из requirements.txt.

@@ -15,7 +15,7 @@
 
 ```bash
 docker compose build
-docker compose run --rm race-monitor
+docker compose up -d race-monitor
 ```
 
 ## Локальный запуск (без Docker)
@@ -23,6 +23,9 @@ docker compose run --rm race-monitor
 ```bash
 ./run_local.sh
 ```
+
+## Расписание в контейнере
+Скрипт запускается автоматически каждый день в 06:02 по Лисабону (Europe/Lisbon).
 
 ## Развертывание на сервере
 
