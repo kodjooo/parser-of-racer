@@ -89,6 +89,8 @@ def main() -> int:
     to_notify_map: dict[str, set[str]] = {}
     missing_rows: list[tuple[str, str]] = []
 
+    missing_candidates: list[tuple[str, str]] = []
+
     for source_name, url_map in source_results.items():
         scraped_set = set(url_map.keys())
         new_candidates = scraped_set - known_urls
@@ -103,22 +105,19 @@ def main() -> int:
             len(to_notify),
         )
 
+        if new_candidates:
+            for normalized in sorted(new_candidates):
+                missing_candidates.append((source_name, url_map[normalized]))
+
         if to_notify:
             for normalized in sorted(to_notify):
                 missing_rows.append((source_name, url_map[normalized]))
-
-    if all(not urls for urls in to_notify_map.values()):
-        logger.info("Новых ссылок нет, уведомления не отправляются")
-        if not config.dry_run:
-            prune_known(state, known_urls)
-            save_state(config.state_path, state)
-        return 1 if source_errors else 0
 
     if not config.dry_run:
         missing_gid = write_missing_races(
             config.sheet_id,
             config.missing_worksheet_name,
-            missing_rows,
+            missing_candidates,
             config.google_credentials_path,
             logger,
         )
@@ -129,6 +128,13 @@ def main() -> int:
             config.google_credentials_path,
             logger,
         )
+
+    if all(not urls for urls in to_notify_map.values()):
+        logger.info("Новых ссылок нет, уведомления не отправляются")
+        if not config.dry_run:
+            prune_known(state, known_urls)
+            save_state(config.state_path, state)
+        return 1 if source_errors else 0
 
     total_missing = len(missing_rows)
     sheet_link = (
