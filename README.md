@@ -37,6 +37,17 @@ docker compose up -d race-monitor
 3. Запустить контейнер: `docker compose run --rm race-monitor`.
 4. Для расписания настроить cron на сервере, который будет выполнять команду из пункта 3 каждые 2 дня.
 
+## Развертывание через git на сервере
+
+```bash
+git clone https://github.com/kodjooo/parser-of-racer.git
+cd parser-of-racer
+cp .env.example .env
+# Заполнить .env и добавить google-credentials.json
+docker compose build
+docker compose up -d race-monitor
+```
+
 ## Telegram (личный аккаунт)
 Для отправки сообщений используется Telethon и сессия аккаунта.
 Первый запуск попросит код подтверждения и, при необходимости, пароль 2FA.

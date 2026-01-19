@@ -41,6 +41,9 @@ Docker
 - В контейнере запуск по расписанию 06:02 Europe/Lisbon реализован циклом ожидания в entrypoint.sh (без cron).
 - При старте контейнера выполняется тестовый запуск, управляется RUN_SMOKE_ON_START.
 
+Развертывание
+- Основной сценарий на сервере: git clone, настройка .env и google-credentials.json, затем docker compose up -d.
+
 Локальный запуск
 - Используется virtualenv, зависимости из requirements.txt.
 - Требуется установить Chromium через Playwright.
