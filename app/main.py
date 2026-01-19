@@ -4,19 +4,12 @@ import sys
 from playwright.sync_api import sync_playwright
 
 from app.config import load_config
-from app.integrations.sheets import fetch_known_urls
+from app.integrations.sheets import fetch_known_urls, fetch_worksheet_gid, write_missing_races
 from app.integrations.state import add_notified, get_notified_set, load_state, prune_known, save_state
 from app.integrations.telegram import chunk_lines, send_message
 from app.logging_setup import setup_logging
 from app.sources.source1_portugalruncalendar import scrape_source1
 from app.sources.source2_portugalrunning import scrape_source2
-
-
-def _build_message_lines(source_name: str, urls: list[str]) -> list[str]:
-    lines = [f"Источник: {source_name}", f"Новых ссылок: {len(urls)}"]
-    for idx, url in enumerate(urls, start=1):
-        lines.append(f"{idx}) {url}")
-    return lines
 
 
 def _log_config(logger: logging.Logger, config) -> None:
@@ -93,8 +86,8 @@ def main() -> int:
         logger.error("Не удалось получить данные ни с одного источника")
         return 1
 
-    messages: list[str] = ["[Race Monitor] Новые события найдены"]
     to_notify_map: dict[str, set[str]] = {}
+    missing_rows: list[tuple[str, str]] = []
 
     for source_name, url_map in source_results.items():
         scraped_set = set(url_map.keys())
@@ -111,9 +104,8 @@ def main() -> int:
         )
 
         if to_notify:
-            urls_for_message = [url_map[url] for url in sorted(to_notify)]
-            messages.append("")
-            messages.extend(_build_message_lines(source_name, urls_for_message))
+            for normalized in sorted(to_notify):
+                missing_rows.append((source_name, url_map[normalized]))
 
     if all(not urls for urls in to_notify_map.values()):
         logger.info("Новых ссылок нет, уведомления не отправляются")
@@ -122,7 +114,33 @@ def main() -> int:
             save_state(config.state_path, state)
         return 1 if source_errors else 0
 
-    chunks = chunk_lines(messages, config.max_telegram_chars)
+    if not config.dry_run:
+        missing_gid = write_missing_races(
+            config.sheet_id,
+            config.missing_worksheet_name,
+            missing_rows,
+            config.google_credentials_path,
+            logger,
+        )
+    else:
+        missing_gid = fetch_worksheet_gid(
+            config.sheet_id,
+            config.missing_worksheet_name,
+            config.google_credentials_path,
+            logger,
+        )
+
+    total_missing = len(missing_rows)
+    sheet_link = (
+        f"https://docs.google.com/spreadsheets/d/{config.sheet_id}"
+        f"/edit#gid={missing_gid}"
+    )
+    message_lines = [
+        f"{total_missing} races were found that aren't in our table.",
+        "",
+        f"View the full list: {sheet_link}",
+    ]
+    chunks = chunk_lines(message_lines, config.max_telegram_chars)
     if config.dry_run:
         logger.info("DRY_RUN включен, сообщения не отправляются")
         for chunk in chunks:

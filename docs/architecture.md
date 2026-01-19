@@ -21,8 +21,9 @@
 3) Загрузка notified_store -> notified_set.
 4) Парсинг источников -> карты {normalized: original}.
 5) Вычисление to_notify по каждому источнику.
-6) Формирование сообщений и отправка в Telegram (Telethon, или DRY_RUN).
-7) Обновление notified_store и очистка известных URL.
+6) Очистка листа Missing races и запись новых ссылок с источником.
+7) Формирование сообщения и отправка в Telegram (Telethon, или DRY_RUN).
+8) Обновление notified_store и очистка известных URL.
 
 Хранилище состояния
 - Файл JSON по пути STATE_PATH (по умолчанию ./data/notified.json).

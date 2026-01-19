@@ -20,6 +20,7 @@ class Config:
     sheet_id: str
     worksheet_name: str
     url_column: str
+    missing_worksheet_name: str
     google_credentials_path: str
     telegram_api_id: int
     telegram_api_hash: str
@@ -68,6 +69,7 @@ def load_config() -> Config:
         sheet_id=os.environ["SHEET_ID"],
         worksheet_name=os.environ["WORKSHEET_NAME"],
         url_column=os.environ["URL_COLUMN"],
+        missing_worksheet_name=os.getenv("MISSING_WORKSHEET_NAME", "Missing races"),
         google_credentials_path=os.environ["GOOGLE_CREDENTIALS_PATH"],
         telegram_api_id=int(os.environ["TELEGRAM_API_ID"]),
         telegram_api_hash=os.environ["TELEGRAM_API_HASH"],
