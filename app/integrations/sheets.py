@@ -15,6 +15,18 @@ def _get_column_index(header: list[str], column_name: str) -> int:
     raise ValueError(f"Колонка '{column_name}' не найдена в заголовках")
 
 
+def _get_or_create_worksheet(
+    spreadsheet: gspread.Spreadsheet,
+    worksheet_name: str,
+    logger: logging.Logger,
+) -> gspread.Worksheet:
+    try:
+        return spreadsheet.worksheet(worksheet_name)
+    except gspread.exceptions.WorksheetNotFound:
+        logger.info("Лист '%s' не найден, создаем новый", worksheet_name)
+        return spreadsheet.add_worksheet(title=worksheet_name, rows=1, cols=2)
+
+
 def write_missing_races(
     sheet_id: str,
     worksheet_name: str,
@@ -28,7 +40,8 @@ def write_missing_races(
             scopes=["https://www.googleapis.com/auth/spreadsheets"],
         )
         client = gspread.authorize(credentials)
-        worksheet = client.open_by_key(sheet_id).worksheet(worksheet_name)
+        spreadsheet = client.open_by_key(sheet_id)
+        worksheet = _get_or_create_worksheet(spreadsheet, worksheet_name, logger)
 
         worksheet.clear()
         if not rows:
@@ -88,10 +101,11 @@ def fetch_worksheet_gid(
     def _action() -> int:
         credentials = Credentials.from_service_account_file(
             credentials_path,
-            scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
+            scopes=["https://www.googleapis.com/auth/spreadsheets"],
         )
         client = gspread.authorize(credentials)
-        worksheet = client.open_by_key(sheet_id).worksheet(worksheet_name)
+        spreadsheet = client.open_by_key(sheet_id)
+        worksheet = _get_or_create_worksheet(spreadsheet, worksheet_name, logger)
         return worksheet.id
 
     return run_with_retries(_action, logger=logger, action_name="чтение gid листа")
