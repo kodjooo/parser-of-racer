@@ -33,7 +33,7 @@
 - Удаляем протокол (http/https) и префикс www для повышения совпадений.
 
 Docker
-- Один сервис race-monitor в docker-compose.yml.
+- Один сервис race-monitor в docker-compose.yml, запускается через entrypoint.sh.
 - Тома для data/ и logs/ подключаются как volume.
 - google-credentials.json монтируется read-only.
 - session.session монтируется как read-write для Telethon-сессии.

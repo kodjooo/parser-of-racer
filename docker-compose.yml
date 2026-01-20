@@ -9,4 +9,3 @@ services:
       - ./logs:/app/logs
       - ./google-credentials.json:/app/google-credentials.json:ro
       - ./session.session:/app/session.session
-    command: ["python", "-m", "app.main"]
