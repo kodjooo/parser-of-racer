@@ -36,6 +36,7 @@ Docker
 - Один сервис race-monitor в docker-compose.yml.
 - Тома для data/ и logs/ подключаются как volume.
 - google-credentials.json монтируется read-only.
+- session.session монтируется read-only для авторизованной Telethon-сессии.
 - Базовый образ Docker: mcr.microsoft.com/playwright/python:v1.46.0-jammy (включает Chromium).
 - В образ копируются тесты для запуска pytest внутри контейнера.
 - В контейнере запуск по расписанию 06:02 Europe/Lisbon реализован циклом ожидания в entrypoint.sh (без cron).
