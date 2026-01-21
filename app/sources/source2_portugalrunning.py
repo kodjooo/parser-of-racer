@@ -22,16 +22,30 @@ def _extract_month_listing_links(page, list_selector: str) -> list[str]:
     return links
 
 
-def _extract_detail_links(page, list_selector: str, link_selector: str) -> list[str]:
-    links: list[str] = []
+def _extract_event_entries(
+    page,
+    list_selector: str,
+    link_selector: str,
+    location_selector: str,
+) -> list[tuple[str, str]]:
+    entries: list[tuple[str, str]] = []
     list_locator = page.locator(list_selector)
     for idx in range(list_locator.count()):
-        event_locator = list_locator.nth(idx).locator(link_selector)
-        for jdx in range(event_locator.count()):
-            href = event_locator.nth(jdx).get_attribute("href")
-            if href:
-                links.append(href)
-    return links
+        event_root = list_locator.nth(idx)
+        link_locator = event_root.locator(link_selector)
+        href = link_locator.first.get_attribute("href") if link_locator.count() > 0 else None
+        if not href:
+            continue
+        location_locator = event_root.locator(location_selector)
+        if location_locator.count() == 0:
+            location_locator = page.locator(location_selector)
+        location_text = (
+            location_locator.first.inner_text().strip()
+            if location_locator.count() > 0
+            else ""
+        )
+        entries.append((href, location_text))
+    return entries
 
 
 def _get_month_marker(page) -> str:
@@ -131,8 +145,6 @@ def scrape_source2(
     results: dict[str, tuple[str, str]] = {}
     detail_page = context.new_page()
     detail_page.set_default_timeout(timeout_ms)
-    event_page = context.new_page()
-    event_page.set_default_timeout(timeout_ms)
     for index in range(13):
         listing_links = _extract_month_listing_links(page, month_list_links_selector)
         if not listing_links:
@@ -144,22 +156,18 @@ def scrape_source2(
                 detail_page.goto(absolute, wait_until="networkidle")
 
             run_with_retries(_open_detail, logger=logger, action_name="загрузка карточки")
-            detail_links = _extract_detail_links(detail_page, list_selector, link_selector)
-            if not detail_links:
+            entries = _extract_event_entries(
+                detail_page,
+                list_selector,
+                link_selector,
+                location_selector,
+            )
+            if not entries:
                 logger.warning("Не найдены ссылки событий в карточке %s", absolute)
-            for detail_href in detail_links:
+            for detail_href, location_text in entries:
                 detail_absolute = urljoin(detail_page.url, detail_href)
                 normalized = normalize_url(detail_absolute)
                 if normalized not in results:
-                    def _open_event() -> None:
-                        event_page.goto(detail_absolute, wait_until="networkidle")
-
-                    run_with_retries(_open_event, logger=logger, action_name="загрузка события")
-                    location_text = ""
-                    location_locator = event_page.locator(location_selector)
-                    if location_locator.count() > 0:
-                        location_text = location_locator.first.inner_text().strip()
-
                     if not location_text:
                         logger.warning("Не найдена локация для события %s", detail_absolute)
                         continue
@@ -222,5 +230,4 @@ def scrape_source2(
 
     page.close()
     detail_page.close()
-    event_page.close()
     return results
