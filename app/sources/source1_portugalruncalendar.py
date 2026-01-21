@@ -74,7 +74,7 @@ def scrape_source1(
 
     def _collect_links() -> tuple[int, int]:
         listing_locator = page.locator(event_selector)
-        listing_links = []
+        listing_links: list[str] = []
         for idx in range(listing_locator.count()):
             href = listing_locator.nth(idx).get_attribute("href")
             if href:
@@ -84,20 +84,24 @@ def scrape_source1(
         detail_selector = _to_relative_selector(detail_links_selector)
         added = 0
         for idx, href in enumerate(listing_links):
-            absolute = urljoin(page.url, href)
+            coords_absolute = urljoin(page.url, href)
+            table_href = None
+            detail_href = None
+            if idx < listing_locator.count():
+                detail_locator = listing_locator.nth(idx).locator(detail_selector)
+                if detail_locator.count() > 0:
+                    candidate = detail_locator.first.get_attribute("href")
+                    if candidate:
+                        detail_href = candidate
+            if detail_href:
+                table_href = detail_href
+            else:
+                table_href = href
+            absolute = urljoin(page.url, table_href)
             normalized = normalize_url(absolute)
             if normalized not in results:
-                detail_href = href
-                if idx < listing_locator.count():
-                    detail_locator = listing_locator.nth(idx).locator(detail_selector)
-                    if detail_locator.count() > 0:
-                        candidate = detail_locator.first.get_attribute("href")
-                        if candidate:
-                            detail_href = candidate
-                detail_absolute = urljoin(page.url, detail_href)
-
                 def _open_detail() -> None:
-                    detail_page.goto(detail_absolute, wait_until="networkidle")
+                    detail_page.goto(coords_absolute, wait_until="networkidle")
 
                 run_with_retries(_open_detail, logger=logger, action_name="загрузка карточки")
 
@@ -108,7 +112,7 @@ def scrape_source1(
 
                 coords = parse_coordinates(coords_text)
                 if not coords:
-                    logger.warning("Не найдены координаты для события %s", detail_absolute)
+                    logger.warning("Не найдены координаты для события %s", coords_absolute)
                     continue
 
                 lat, lon = coords
