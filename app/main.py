@@ -57,6 +57,7 @@ def main() -> int:
                     config.source1_event_links,
                     config.source1_next_button_selector,
                     config.source1_coords_selector,
+                    config.source1_detail_links,
                     config.timeout_ms,
                     config.max_pagination_pages,
                     config.nominatim_base_url,

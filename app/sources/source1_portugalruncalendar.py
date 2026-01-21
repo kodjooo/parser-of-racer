@@ -13,6 +13,16 @@ from app.integrations.url_normalize import normalize_url
 from app.utils.retry import run_with_retries
 
 
+def _extract_links_by_selector(page, selector: str) -> list[str]:
+    locator = page.locator(selector)
+    links: list[str] = []
+    for idx in range(locator.count()):
+        href = locator.nth(idx).get_attribute("href")
+        if href:
+            links.append(href)
+    return links
+
+
 def _extract_event_links(page, selector_primary: str) -> list[str]:
     selectors = [
         selector_primary,
@@ -20,14 +30,7 @@ def _extract_event_links(page, selector_primary: str) -> list[str]:
         "div.space-y-6 a",
     ]
     for selector in selectors:
-        locator = page.locator(selector)
-        if locator.count() == 0:
-            continue
-        links: list[str] = []
-        for idx in range(locator.count()):
-            href = locator.nth(idx).get_attribute("href")
-            if href:
-                links.append(href)
+        links = _extract_links_by_selector(page, selector)
         if links:
             return links
     return []
@@ -44,6 +47,7 @@ def scrape_source1(
     event_selector: str,
     next_button_selector: str,
     coords_selector: str,
+    detail_links_selector: str,
     timeout_ms: int,
     max_pages: int,
     nominatim_base_url: str,
@@ -65,16 +69,26 @@ def scrape_source1(
     use_button_pagination = bool(next_button_selector.strip())
 
     def _collect_links() -> tuple[int, int]:
-        links = _extract_event_links(page, event_selector)
-        if not links:
+        listing_links = _extract_event_links(page, event_selector)
+        if not listing_links:
             logger.warning("Не найдены ссылки событий на странице %s", page.url)
+        detail_links = _extract_links_by_selector(page, detail_links_selector)
+        if detail_links and listing_links and len(detail_links) != len(listing_links):
+            logger.warning(
+                "Несовпадение количества ссылок: список=%s детальных=%s",
+                len(listing_links),
+                len(detail_links),
+            )
         added = 0
-        for href in links:
+        for idx, href in enumerate(listing_links):
             absolute = urljoin(page.url, href)
             normalized = normalize_url(absolute)
             if normalized not in results:
+                detail_href = detail_links[idx] if idx < len(detail_links) else href
+                detail_absolute = urljoin(page.url, detail_href)
+
                 def _open_detail() -> None:
-                    detail_page.goto(absolute, wait_until="networkidle")
+                    detail_page.goto(detail_absolute, wait_until="networkidle")
 
                 run_with_retries(_open_detail, logger=logger, action_name="загрузка карточки")
 
@@ -85,7 +99,7 @@ def scrape_source1(
 
                 coords = parse_coordinates(coords_text)
                 if not coords:
-                    logger.warning("Не найдены координаты для события %s", absolute)
+                    logger.warning("Не найдены координаты для события %s", detail_absolute)
                     continue
 
                 lat, lon = coords
@@ -107,7 +121,7 @@ def scrape_source1(
                 added += 1
             else:
                 logger.debug("Дубликат после нормализации: %s", absolute)
-        return len(links), added
+        return len(listing_links), added
 
     if not use_button_pagination:
         logger.error("SOURCE1_NEXT_BUTTON_SELECTOR не задан, пагинация недоступна")

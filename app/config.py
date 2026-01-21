@@ -40,6 +40,7 @@ class Config:
     source1_event_links: str
     source1_next_button_selector: str
     source1_coords_selector: str
+    source1_detail_links: str
     source2_url: str
     source2_next_button: str
     source2_month_list_links: str
@@ -101,6 +102,10 @@ def load_config() -> Config:
         source1_coords_selector=os.getenv(
             "SOURCE1_COORDS_SELECTOR",
             "div.space-y-6 div.flex.items-start.gap-3 p.text-muted-foreground.mt-1",
+        ),
+        source1_detail_links=os.getenv(
+            "SOURCE1_DETAIL_LINKS",
+            "div.space-y-6 a.block.h-full a.w-full",
         ),
         source2_url=os.getenv(
             "SOURCE2_URL", "https://www.portugalrunning.com/calendario-de-corridas/"
