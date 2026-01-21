@@ -99,7 +99,6 @@ def geocode_location_portugal(
         "key": api_key,
         "no_annotations": 1,
         "limit": 1,
-        "countrycode": "pt",
     }
     response = requests.get(url, params=params, timeout=30)
     response.raise_for_status()
