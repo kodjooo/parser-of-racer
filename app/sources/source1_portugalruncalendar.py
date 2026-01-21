@@ -36,6 +36,11 @@ def _extract_event_links(page, selector_primary: str) -> list[str]:
     return []
 
 
+def _to_relative_selector(selector: str) -> str:
+    parts = selector.strip().split()
+    return parts[-1] if parts else selector.strip()
+
+
 def _get_first_event_marker(page, selector_primary: str) -> str:
     links = _extract_event_links(page, selector_primary)
     return links[0] if links else ""
@@ -68,22 +73,27 @@ def scrape_source1(
     use_button_pagination = bool(next_button_selector.strip())
 
     def _collect_links() -> tuple[int, int]:
-        listing_links = _extract_event_links(page, event_selector)
+        listing_locator = page.locator(event_selector)
+        listing_links = []
+        for idx in range(listing_locator.count()):
+            href = listing_locator.nth(idx).get_attribute("href")
+            if href:
+                listing_links.append(href)
         if not listing_links:
             logger.warning("Не найдены ссылки событий на странице %s", page.url)
-        detail_links = _extract_links_by_selector(page, detail_links_selector)
-        if detail_links and listing_links and len(detail_links) != len(listing_links):
-            logger.warning(
-                "Несовпадение количества ссылок: список=%s детальных=%s",
-                len(listing_links),
-                len(detail_links),
-            )
+        detail_selector = _to_relative_selector(detail_links_selector)
         added = 0
         for idx, href in enumerate(listing_links):
             absolute = urljoin(page.url, href)
             normalized = normalize_url(absolute)
             if normalized not in results:
-                detail_href = detail_links[idx] if idx < len(detail_links) else href
+                detail_href = href
+                if idx < listing_locator.count():
+                    detail_locator = listing_locator.nth(idx).locator(detail_selector)
+                    if detail_locator.count() > 0:
+                        candidate = detail_locator.first.get_attribute("href")
+                        if candidate:
+                            detail_href = candidate
                 detail_absolute = urljoin(page.url, detail_href)
 
                 def _open_detail() -> None:
