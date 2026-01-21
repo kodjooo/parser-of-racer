@@ -37,13 +37,6 @@ def _respect_delay(delay_sec: float) -> None:
     _LAST_REQUEST_TS = time.monotonic()
 
 
-def _build_headers(user_agent: str, email: str | None) -> dict[str, str]:
-    ua = user_agent
-    if email:
-        ua = f"{user_agent} ({email})"
-    return {"User-Agent": ua}
-
-
 def _is_portugal(country_code: str | None) -> bool:
     return (country_code or "").lower() == "pt"
 
@@ -52,26 +45,27 @@ def reverse_geocode_portugal(
     lat: float,
     lon: float,
     base_url: str,
-    user_agent: str,
-    email: str | None,
+    api_key: str,
     delay_sec: float,
     logger: logging.Logger,
 ) -> bool:
     _respect_delay(delay_sec)
-    url = f"{base_url.rstrip('/')}/reverse"
+    url = f"{base_url.rstrip('/')}/json"
     params = {
-        "format": "json",
-        "lat": f"{lat}",
-        "lon": f"{lon}",
-        "zoom": 10,
-        "addressdetails": 1,
+        "q": f"{lat},{lon}",
+        "key": api_key,
+        "no_annotations": 1,
+        "limit": 1,
     }
-    headers = _build_headers(user_agent, email)
-    response = requests.get(url, params=params, headers=headers, timeout=30)
+    response = requests.get(url, params=params, timeout=30)
     response.raise_for_status()
     data = response.json()
-    address = data.get("address", {}) if isinstance(data, dict) else {}
-    country_code = address.get("country_code")
+    results = data.get("results", []) if isinstance(data, dict) else []
+    if not results:
+        logger.debug("Reverse geocode: no results for %s,%s", lat, lon)
+        return False
+    components = results[0].get("components", {})
+    country_code = components.get("country_code")
     is_pt = _is_portugal(country_code)
     logger.debug(
         "Reverse geocode %s,%s -> country=%s in_pt=%s",
@@ -86,8 +80,7 @@ def reverse_geocode_portugal(
 def geocode_location_portugal(
     location: str,
     base_url: str,
-    user_agent: str,
-    email: str | None,
+    api_key: str,
     delay_sec: float,
     logger: logging.Logger,
 ) -> tuple[float, float] | None:
@@ -100,27 +93,29 @@ def geocode_location_portugal(
         return (lat, lon) if in_pt else None
 
     _respect_delay(delay_sec)
-    url = f"{base_url.rstrip('/')}/search"
+    url = f"{base_url.rstrip('/')}/json"
     params = {
-        "q": f"{location}, Portugal",
-        "format": "json",
+        "q": location,
+        "key": api_key,
+        "no_annotations": 1,
         "limit": 1,
-        "addressdetails": 1,
+        "countrycode": "pt",
     }
-    headers = _build_headers(user_agent, email)
-    response = requests.get(url, params=params, headers=headers, timeout=30)
+    response = requests.get(url, params=params, timeout=30)
     response.raise_for_status()
-    data: list[dict[str, Any]] = response.json()
-    if not data:
+    data: dict[str, Any] = response.json()
+    results = data.get("results", []) if isinstance(data, dict) else []
+    if not results:
         logger.debug("Geocode: no results for '%s'", location)
         _CACHE[cache_key] = (0.0, 0.0, False)
         return None
 
-    first = data[0]
-    lat = float(first["lat"])
-    lon = float(first["lon"])
-    address = first.get("address", {}) if isinstance(first, dict) else {}
-    country_code = address.get("country_code")
+    first = results[0]
+    geometry = first.get("geometry", {})
+    lat = float(geometry["lat"])
+    lon = float(geometry["lng"])
+    components = first.get("components", {}) if isinstance(first, dict) else {}
+    country_code = components.get("country_code")
     in_pt = _is_portugal(country_code)
     logger.debug(
         "Geocode '%s' -> %s,%s country=%s in_pt=%s",

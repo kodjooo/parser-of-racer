@@ -112,10 +112,9 @@ def scrape_source2(
     link_selector: str,
     location_selector: str,
     timeout_ms: int,
-    nominatim_base_url: str,
-    nominatim_user_agent: str,
-    nominatim_email: str | None,
-    nominatim_delay_sec: float,
+    opencage_base_url: str,
+    opencage_api_key: str,
+    opencage_delay_sec: float,
     logger: logging.Logger,
 ) -> dict[str, tuple[str, str]]:
     page = context.new_page()
@@ -167,10 +166,9 @@ def scrape_source2(
 
                     coords = geocode_location_portugal(
                         location_text,
-                        nominatim_base_url,
-                        nominatim_user_agent,
-                        nominatim_email,
-                        nominatim_delay_sec,
+                        opencage_base_url,
+                        opencage_api_key,
+                        opencage_delay_sec,
                         logger,
                     )
                     if not coords:

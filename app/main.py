@@ -60,10 +60,9 @@ def main() -> int:
                     config.source1_detail_links,
                     config.timeout_ms,
                     config.max_pagination_pages,
-                    config.nominatim_base_url,
-                    config.nominatim_user_agent,
-                    config.nominatim_email,
-                    config.nominatim_delay_sec,
+                    config.opencage_base_url,
+                    config.opencage_api_key,
+                    config.opencage_delay_sec,
                     logger,
                 )
             except Exception as exc:  # noqa: BLE001
@@ -81,10 +80,9 @@ def main() -> int:
                     config.source2_event_links,
                     config.source2_location_selector,
                     config.timeout_ms,
-                    config.nominatim_base_url,
-                    config.nominatim_user_agent,
-                    config.nominatim_email,
-                    config.nominatim_delay_sec,
+                    config.opencage_base_url,
+                    config.opencage_api_key,
+                    config.opencage_delay_sec,
                     logger,
                 )
             except Exception as exc:  # noqa: BLE001

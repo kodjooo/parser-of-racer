@@ -48,10 +48,9 @@ class Config:
     source2_event_links: str
     source2_location_selector: str
     max_pagination_pages: int
-    nominatim_base_url: str
-    nominatim_user_agent: str
-    nominatim_email: str | None
-    nominatim_delay_sec: float
+    opencage_base_url: str
+    opencage_api_key: str
+    opencage_delay_sec: float
 
 
 REQUIRED_ENV = [
@@ -62,6 +61,7 @@ REQUIRED_ENV = [
     "TELEGRAM_API_ID",
     "TELEGRAM_API_HASH",
     "TELEGRAM_TARGET",
+    "OPENCAGE_API_KEY",
 ]
 
 
@@ -124,12 +124,9 @@ def load_config() -> Config:
             "em.evcal_location em.event_location_name",
         ),
         max_pagination_pages=_parse_int(os.getenv("MAX_PAGINATION_PAGES"), 200),
-        nominatim_base_url=os.getenv(
-            "NOMINATIM_BASE_URL", "https://nominatim.openstreetmap.org"
+        opencage_base_url=os.getenv(
+            "OPENCAGE_BASE_URL", "https://api.opencagedata.com/geocode/v1"
         ),
-        nominatim_user_agent=os.getenv(
-            "NOMINATIM_USER_AGENT", "race-monitor/1.0"
-        ),
-        nominatim_email=os.getenv("NOMINATIM_EMAIL") or None,
-        nominatim_delay_sec=float(os.getenv("NOMINATIM_DELAY_SEC", "1.0")),
+        opencage_api_key=os.environ["OPENCAGE_API_KEY"],
+        opencage_delay_sec=float(os.getenv("OPENCAGE_DELAY_SEC", "1.0")),
     )
