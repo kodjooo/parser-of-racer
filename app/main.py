@@ -43,7 +43,7 @@ def main() -> int:
     notified_set = get_notified_set(state)
 
     source_errors: list[str] = []
-    source_results: dict[str, dict[str, str]] = {}
+    source_results: dict[str, dict[str, tuple[str, str]]] = {}
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=config.run_headless)
@@ -56,8 +56,13 @@ def main() -> int:
                     config.source1_url,
                     config.source1_event_links,
                     config.source1_next_button_selector,
+                    config.source1_coords_selector,
                     config.timeout_ms,
                     config.max_pagination_pages,
+                    config.nominatim_base_url,
+                    config.nominatim_user_agent,
+                    config.nominatim_email,
+                    config.nominatim_delay_sec,
                     logger,
                 )
             except Exception as exc:  # noqa: BLE001
@@ -73,7 +78,12 @@ def main() -> int:
                     config.source2_month_list_links,
                     config.source2_event_list,
                     config.source2_event_links,
+                    config.source2_location_selector,
                     config.timeout_ms,
+                    config.nominatim_base_url,
+                    config.nominatim_user_agent,
+                    config.nominatim_email,
+                    config.nominatim_delay_sec,
                     logger,
                 )
             except Exception as exc:  # noqa: BLE001
@@ -88,9 +98,9 @@ def main() -> int:
         return 1
 
     to_notify_map: dict[str, set[str]] = {}
-    missing_rows: list[tuple[str, str]] = []
+    missing_rows: list[tuple[str, str, str]] = []
 
-    missing_candidates: list[tuple[str, str]] = []
+    missing_candidates: list[tuple[str, str, str]] = []
 
     for source_name, url_map in source_results.items():
         scraped_set = set(url_map.keys())
@@ -108,11 +118,13 @@ def main() -> int:
 
         if new_candidates:
             for normalized in sorted(new_candidates):
-                missing_candidates.append((source_name, url_map[normalized]))
+                url, coords = url_map[normalized]
+                missing_candidates.append((source_name, url, coords))
 
         if to_notify:
             for normalized in sorted(to_notify):
-                missing_rows.append((source_name, url_map[normalized]))
+                url, coords = url_map[normalized]
+                missing_rows.append((source_name, url, coords))
 
     if not config.dry_run:
         missing_gid = write_missing_races(

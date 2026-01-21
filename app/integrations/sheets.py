@@ -30,7 +30,7 @@ def _get_or_create_worksheet(
 def write_missing_races(
     sheet_id: str,
     worksheet_name: str,
-    rows: list[tuple[str, str]],
+    rows: list[tuple[str, str, str]],
     credentials_path: str,
     logger: logging.Logger,
 ) -> int:
@@ -48,8 +48,8 @@ def write_missing_races(
             logger.info("Лист Missing races очищен, новых ссылок нет")
             return worksheet.id
 
-        values = [["Источник", "Ссылка"]]
-        values.extend([[source, url] for source, url in rows])
+        values = [["Источник", "Ссылка", "Координаты"]]
+        values.extend([[source, url, coords] for source, url, coords in rows])
         worksheet.update(values, value_input_option="RAW")
         return worksheet.id
 

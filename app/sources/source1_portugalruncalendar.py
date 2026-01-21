@@ -4,6 +4,11 @@ from urllib.parse import urljoin
 
 from playwright.sync_api import BrowserContext, TimeoutError as PlaywrightTimeoutError
 
+from app.integrations.geocode import (
+    format_coordinates,
+    parse_coordinates,
+    reverse_geocode_portugal,
+)
 from app.integrations.url_normalize import normalize_url
 from app.utils.retry import run_with_retries
 
@@ -38,14 +43,21 @@ def scrape_source1(
     base_url: str,
     event_selector: str,
     next_button_selector: str,
+    coords_selector: str,
     timeout_ms: int,
     max_pages: int,
+    nominatim_base_url: str,
+    nominatim_user_agent: str,
+    nominatim_email: str | None,
+    nominatim_delay_sec: float,
     logger: logging.Logger,
-) -> dict[str, str]:
+) -> dict[str, tuple[str, str]]:
     page = context.new_page()
     page.set_default_timeout(timeout_ms)
 
-    results: dict[str, str] = {}
+    results: dict[str, tuple[str, str]] = {}
+    detail_page = context.new_page()
+    detail_page.set_default_timeout(timeout_ms)
 
     def _goto(url: str) -> None:
         page.goto(url, wait_until="networkidle")
@@ -61,7 +73,37 @@ def scrape_source1(
             absolute = urljoin(page.url, href)
             normalized = normalize_url(absolute)
             if normalized not in results:
-                results[normalized] = absolute
+                def _open_detail() -> None:
+                    detail_page.goto(absolute, wait_until="networkidle")
+
+                run_with_retries(_open_detail, logger=logger, action_name="загрузка карточки")
+
+                coords_text = ""
+                coords_locator = detail_page.locator(coords_selector)
+                if coords_locator.count() > 0:
+                    coords_text = coords_locator.first.inner_text().strip()
+
+                coords = parse_coordinates(coords_text)
+                if not coords:
+                    logger.warning("Не найдены координаты для события %s", absolute)
+                    continue
+
+                lat, lon = coords
+                in_portugal = reverse_geocode_portugal(
+                    lat,
+                    lon,
+                    nominatim_base_url,
+                    nominatim_user_agent,
+                    nominatim_email,
+                    nominatim_delay_sec,
+                    logger,
+                )
+                if not in_portugal:
+                    logger.debug("Событие вне Португалии: %s", absolute)
+                    continue
+
+                coord_str = format_coordinates(lat, lon)
+                results[normalized] = (absolute, coord_str)
                 added += 1
             else:
                 logger.debug("Дубликат после нормализации: %s", absolute)
@@ -70,6 +112,7 @@ def scrape_source1(
     if not use_button_pagination:
         logger.error("SOURCE1_NEXT_BUTTON_SELECTOR не задан, пагинация недоступна")
         page.close()
+        detail_page.close()
         return results
 
     try:
@@ -77,6 +120,7 @@ def scrape_source1(
     except PlaywrightTimeoutError as exc:
         logger.error("Таймаут при загрузке %s: %s", base_url, exc)
         page.close()
+        detail_page.close()
         return results
 
     last_marker = ""
@@ -124,4 +168,5 @@ def scrape_source1(
         logger.warning("MAX_PAGINATION_PAGES задан неверно: %s", max_pages)
 
     page.close()
+    detail_page.close()
     return results

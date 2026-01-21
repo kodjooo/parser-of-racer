@@ -4,6 +4,10 @@ from urllib.parse import urljoin
 
 from playwright.sync_api import BrowserContext, TimeoutError as PlaywrightTimeoutError
 
+from app.integrations.geocode import (
+    format_coordinates,
+    geocode_location_portugal,
+)
 from app.integrations.url_normalize import normalize_url
 from app.utils.retry import run_with_retries
 
@@ -106,9 +110,14 @@ def scrape_source2(
     month_list_links_selector: str,
     list_selector: str,
     link_selector: str,
+    location_selector: str,
     timeout_ms: int,
+    nominatim_base_url: str,
+    nominatim_user_agent: str,
+    nominatim_email: str | None,
+    nominatim_delay_sec: float,
     logger: logging.Logger,
-) -> dict[str, str]:
+) -> dict[str, tuple[str, str]]:
     page = context.new_page()
     page.set_default_timeout(timeout_ms)
 
@@ -120,7 +129,11 @@ def scrape_source2(
     page.wait_for_selector(next_button_selector)
     _dismiss_cookie_overlay(page, logger)
 
-    results: dict[str, str] = {}
+    results: dict[str, tuple[str, str]] = {}
+    detail_page = context.new_page()
+    detail_page.set_default_timeout(timeout_ms)
+    event_page = context.new_page()
+    event_page.set_default_timeout(timeout_ms)
     for index in range(13):
         listing_links = _extract_month_listing_links(page, month_list_links_selector)
         if not listing_links:
@@ -128,9 +141,6 @@ def scrape_source2(
 
         for href in listing_links:
             absolute = urljoin(page.url, href)
-            detail_page = context.new_page()
-            detail_page.set_default_timeout(timeout_ms)
-
             def _open_detail() -> None:
                 detail_page.goto(absolute, wait_until="networkidle")
 
@@ -142,9 +152,35 @@ def scrape_source2(
                 detail_absolute = urljoin(detail_page.url, detail_href)
                 normalized = normalize_url(detail_absolute)
                 if normalized not in results:
+                    def _open_event() -> None:
+                        event_page.goto(detail_absolute, wait_until="networkidle")
+
+                    run_with_retries(_open_event, logger=logger, action_name="загрузка события")
+                    location_text = ""
+                    location_locator = event_page.locator(location_selector)
+                    if location_locator.count() > 0:
+                        location_text = location_locator.first.inner_text().strip()
+
+                    if not location_text:
+                        logger.warning("Не найдена локация для события %s", detail_absolute)
+                        continue
+
+                    coords = geocode_location_portugal(
+                        location_text,
+                        nominatim_base_url,
+                        nominatim_user_agent,
+                        nominatim_email,
+                        nominatim_delay_sec,
+                        logger,
+                    )
+                    if not coords:
+                        logger.debug("Событие вне Португалии: %s", detail_absolute)
+                        continue
+
+                    lat, lon = coords
+                    coord_str = format_coordinates(lat, lon)
                     logger.debug("Итоговая ссылка события: %s", detail_absolute)
-                    results[normalized] = detail_absolute
-            detail_page.close()
+                    results[normalized] = (detail_absolute, coord_str)
 
         if index == 12:
             break
@@ -187,4 +223,6 @@ def scrape_source2(
             logger.warning("Переход месяца может быть неочевиден, продолжаем")
 
     page.close()
+    detail_page.close()
+    event_page.close()
     return results

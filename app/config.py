@@ -39,12 +39,18 @@ class Config:
     source1_url: str
     source1_event_links: str
     source1_next_button_selector: str
+    source1_coords_selector: str
     source2_url: str
     source2_next_button: str
     source2_month_list_links: str
     source2_event_list: str
     source2_event_links: str
+    source2_location_selector: str
     max_pagination_pages: int
+    nominatim_base_url: str
+    nominatim_user_agent: str
+    nominatim_email: str | None
+    nominatim_delay_sec: float
 
 
 REQUIRED_ENV = [
@@ -92,6 +98,10 @@ def load_config() -> Config:
             "SOURCE1_NEXT_BUTTON_SELECTOR",
             "button:has-text(\"Próxima\")",
         ),
+        source1_coords_selector=os.getenv(
+            "SOURCE1_COORDS_SELECTOR",
+            "div.space-y-6 div.flex.items-start.gap-3 p.text-muted-foreground.mt-1",
+        ),
         source2_url=os.getenv(
             "SOURCE2_URL", "https://www.portugalrunning.com/calendario-de-corridas/"
         ),
@@ -104,5 +114,17 @@ def load_config() -> Config:
             "SOURCE2_EVENT_LIST", "div.eventon_events_list div.eventon_list_event"
         ),
         source2_event_links=os.getenv("SOURCE2_EVENT_LINKS", "a.evcal_evdata_row"),
+        source2_location_selector=os.getenv(
+            "SOURCE2_LOCATION_SELECTOR",
+            "em.evcal_location em.event_location_name",
+        ),
         max_pagination_pages=_parse_int(os.getenv("MAX_PAGINATION_PAGES"), 200),
+        nominatim_base_url=os.getenv(
+            "NOMINATIM_BASE_URL", "https://nominatim.openstreetmap.org"
+        ),
+        nominatim_user_agent=os.getenv(
+            "NOMINATIM_USER_AGENT", "race-monitor/1.0"
+        ),
+        nominatim_email=os.getenv("NOMINATIM_EMAIL") or None,
+        nominatim_delay_sec=float(os.getenv("NOMINATIM_DELAY_SEC", "1.0")),
     )
