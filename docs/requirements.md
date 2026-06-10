@@ -1,193 +1,106 @@
-
-Модуль публикаций (VK, Telegram, Telegraph)
+Race Monitor (Portugal) — бизнес-требования
 ===========================================
 
 0) ОБЩИЙ ОБЗОР
 -------------------------------------------
-Модуль делает два типа задач:
+Сервис автоматически отслеживает анонсы беговых событий (забегов/гонок) в
+Португалии на внешних сайтах-источниках, сравнивает их с уже известным списком
+в Google Sheets и уведомляет о новых, ещё не зафиксированных событиях в Telegram.
+Учитываются только события, расположенные в Португалии (проверка по геокодингу
+OpenCage).
 
-A. RSS-флоу
-1) Берёт строки из вкладки RSS, где Status = "Revised".
-2) Публикует большую версию (GPT Post) с картинкой (Image URL) в Telegraph, записывает ссылку в Telegraph Link.
-3) Берёт маленькую версию (Short Post), добавляет в конец "\n\nЧитать подробнее: {Telegraph Link}".
-4) Публикует короткую версию + картинку (Image URL) в VK и Telegram.
-5) Сохраняет ссылки публикаций в VK Post Link и TG Post Link.
-6) Проставляет Status = "Published".
+Запуск — один Docker-контейнер по расписанию (06:02 Europe/Lisbon) либо вручную;
+поддерживается локальный запуск.
 
-B. Точечные флоу
-- Вкладка VK: обрабатывает строки со Status = "Revised", публикует Title + Content + Image URL в VK, сохраняет ссылку в Post Link, ставит Status = "Published".
-- Вкладка Setka: обрабатывает строки со Status = "Revised", публикует Title + Content + Image URL в Telegram, сохраняет ссылку в Post Link, ставит Status = "Published".
-
-1) GOOGLE SHEETS
+1) ИСТОЧНИКИ ДАННЫХ
 -------------------------------------------
-Sheet ID: 1bjJiP24WnkierEFqZy00Hw9kSR4ESmXgVetrBeTULnU
-Вкладки: RSS, VK, Setka
+Source 1 — portugalruncalendar.com
+  - Пагинация кликом по кнопке «Próxima» (селектор с фильтром :not([disabled])).
+  - Остановка по неизменному маркеру списка ссылок.
+  - Ссылка для таблицы берётся по дочерней ссылке внутри элемента события
+    (SOURCE1_DETAIL_LINKS); координаты — после перехода по SOURCE1_EVENT_LINKS.
 
-RSS:
-  Date — дата материала
-  Source — источник
-  Title — заголовок
-  Link — оригинальная ссылка
-  Summary — краткое описание
-  Short Post — короткая версия для VK/TG
-  GPT Post Title — заголовок для Telegraph
-  GPT Post — длинная версия для Telegraph
-  Image URL — картинка
-  Image Source — источник картинки
-  Score — приоритет
-  Status — строки со значением "Revised" подлежат обработке, после публикации меняется на "Published"
-  Notes — текст ошибки (заполняется при неудаче)
-  Telegraph Link — ссылка на страницу Telegraph
-  VK Post Link — ссылка на пост VK
-  TG Post Link — ссылка на пост Telegram
+Source 2 — portugalrunning.com
+  - Обход карточек по месяцам, закрытие cookie-баннера перед кликом
+    (включая удаление overlay через JS).
+  - Ожидание смены месяца по #evcal_cur (polling/ретраи) с fallback на изменение
+    списка ссылок.
+  - Ссылки и локации берутся с карточки месяца, локация геокодируется.
 
-VK:
-  Title, Content, Image URL, Status, Status Dzen, Iteration, Publish Note, Lock, Post Link
-  Обработка только для Status = "Revised", после успешной публикации Status = "Published", Post Link заполняется ссылкой на стену, Publish Note очищается.
+Каждый источник можно включать/выключать (SOURCE1_ENABLED, SOURCE2_ENABLED).
+Селекторы вынесены в .env и меняются без релиза кода.
 
-Setka:
-  Title, Content, Image URL, Status, Status Dzen, Iteration, Publish Note, Lock, Post Link
-  Обработка только для Status = "Revised", после успешной публикации Status = "Published", Post Link заполняется ссылкой на Telegram, Publish Note очищается.
-
-VK:
-  Title, Content, Image URL, VK Post Link, Status
-
-Setka:
-  Title, Content, Image URL, Post Link, Status
-
-2) TELEGRAPH (Telegra.ph API)
+2) ФИЛЬТРАЦИЯ ПО СТРАНЕ
 -------------------------------------------
-Если TELEGRAPH_ACCESS_TOKEN нет — создать через createAccount:
-  short_name="Mark"
-  author_name="Марк Аборчи / AI и Автоматизация"
-  author_url="https://t.me/aborchi_m"
+Локация/координаты события проверяются через OpenCage Geocoding API.
+В уведомление и таблицу попадают только события, относящиеся к Португалии.
 
-createPage параметры:
-  title — Title или первые 100 символов GPT Post
-  author_name, author_url — как выше
-  content — массив JSON-нодов, включая картинку и текст параграфами.
-
-На выходе: url → Telegraph Link.
-
-3) VK (сообщество)
+3) GOOGLE SHEETS
 -------------------------------------------
-Нужен VK_USER_ACCESS_TOKEN с правами wall,photos,offline и доступом к нужной группе.
+- Основной лист (WORKSHEET_NAME) содержит колонку URL_COLUMN с уже известными
+  ссылками — источник «истории».
+- Лист отсутствующих ссылок (MISSING_WORKSHEET_NAME, по умолчанию «Missing races»)
+  создаётся автоматически, если его нет; перед записью очищается и заполняется
+  новыми ссылками вместе с координатами.
 
-Загрузка фото:
-1) photos.getWallUploadServer(group_id)
-2) POST на upload_url (multipart, поле photo)
-3) photos.saveWallPhoto(group_id) → owner_id, id
-
-Публикация:
-wall.post(owner_id=-group_id, from_group=1, message, attachments=photo{owner_id}_{id})
-Ссылка: https://vk.com/wall-{group_id}_{post_id} → VK Post Link
-
-4) TELEGRAM (канал, bot → admin)
+4) АНТИ-СПАМ (хранилище состояния)
 -------------------------------------------
-Нужен TELEGRAM_BOT_TOKEN.
-Канал должен иметь username (@channel).
+- Локальный JSON-файл по пути STATE_PATH (по умолчанию ./data/notified.json).
+- Ключи — нормализованные URL, значения — метаданные времени и источника.
+- URL нормализуются (без протокола и префикса www) для надёжной дедупликации.
 
-sendPhoto:
-  chat_id=@channel
-  photo=Image URL
-  caption=текст поста + "\n\nЧитать подробнее: {Telegraph Link}"
-  parse_mode="HTML"
-caption ≤ 1024 символов.
-
-Ссылка: https://t.me/<channel>/<message_id> → Post Link
-
-5) РАСПИСАНИЕ ПУБЛИКАЦИЙ
+5) УВЕДОМЛЕНИЕ В TELEGRAM
 -------------------------------------------
-RSS: публикации выполняются ежедневно в 08:00 и 20:00 (мск).
-VK/Setka: публикации выполняются в 18:00 (мск) только в дни, перечисленные в переменных окружения `VK_PUBLISH_DAYS`, `SETKA_PUBLISH_DAYS` (формат — `mon,tue,...`). За один запуск обрабатывается не более одного поста на каждую вкладку.
+- Отправка через Telethon (личный аккаунт), цель — @username или числовой id
+  группы/супергруппы (для супергрупп — -100id).
+- Используется авторизованная файловая сессия или строковая сессия,
+  без интерактивного ввода.
+- Сообщение содержит дату, счётчик новых событий и ссылку на лист таблицы.
+- Длинные сообщения нарезаются по MAX_TELEGRAM_CHARS.
+- Режим DRY_RUN — без фактической отправки.
 
-6) СБОРКА ТЕКСТА RSS
+6) ПОТОК ДАННЫХ
 -------------------------------------------
-Short Post + "\n\nЧитать подробнее >". Перед публикацией сервис удаляет из исходного текста хвостовой фрагмент "Читать подробнее > ..." (если редактор добавил его вручную), чтобы избежать дублирования. В VK используется сокращённая ссылка (`utils.getShortLink` → `vk.cc/...`) с форматом `Читать подробнее > vk.cc/...`. В Telegram — HTML ссылка `<a href="...">Читать подробнее &gt;</a>`. Поле `Short Post` в таблице не изменяется.
+1. Загрузка конфигурации и логгеров.
+2. Чтение известных URL из Google Sheets -> known_urls.
+3. Загрузка notified_store -> notified_set.
+4. Парсинг источников -> карты {normalized: original}.
+5. Вычисление to_notify по каждому источнику.
+6. Очистка листа Missing races и запись отсутствующих ссылок с координатами
+   (до анти-спама).
+7. Формирование и отправка сообщения в Telegram (или DRY_RUN).
+8. Обновление notified_store.
 
-7) ОБРАБОТКА VK/SETKA
+7) ОШИБКИ, ЛОГИ, РЕТРАИ
 -------------------------------------------
-VK (Status = "Revised"): Title + Content → wall.post (owner_id=-group_id) с Image URL → Post Link, Status=Published
-Setka (Status = "Revised"): Title + Content → sendPhoto(Image URL + caption) → Post Link, Status=Published
+- Ретраи сетевых операций (app/utils/retry.py).
+- Логирование в stdout, уровень — LOG_LEVEL.
+- Корректный код возврата процесса для использования в расписании.
 
-8) ОШИБКИ, ЛОГИ, РЕТРАИ
+8) ENV (ключевые переменные, полный список — в .env.example)
 -------------------------------------------
-2 повтора (всего 3 попытки), экспоненциальная пауза.
-Логирование в stdout (JSON), писать id строки, вкладку, результат.
-Ошибки в Notes (RSS) и Publish Note (VK/Setka), статус не меняется.
+SHEET_ID, WORKSHEET_NAME, MISSING_WORKSHEET_NAME, URL_COLUMN,
+GOOGLE_CREDENTIALS_PATH
+TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_TARGET,
+TELEGRAM_SESSION_PATH / TELEGRAM_SESSION_STRING
+OPENCAGE_API_KEY, OPENCAGE_BASE_URL, OPENCAGE_DELAY_SEC
+RUN_HEADLESS, TIMEOUT_MS, STATE_PATH, MAX_TELEGRAM_CHARS, LOG_LEVEL,
+DRY_RUN, RUN_SMOKE_ON_START
+SOURCE1_*, SOURCE2_* (URL и селекторы), MAX_PAGINATION_PAGES
 
-9) ENV
+9) DOCKER / РАЗВЁРТЫВАНИЕ
 -------------------------------------------
-GOOGLE_SHEET_ID=1bjJiP24WnkierEFqZy00Hw9kSR4ESmXgVetrBeTULnU
-GOOGLE_SERVICE_ACCOUNT_JSON=/app/sa.json
-TELEGRAPH_ACCESS_TOKEN=
-TELEGRAPH_AUTHOR_NAME=Марк Аборчи / AI и Автоматизация
-TELEGRAPH_AUTHOR_URL=https://t.me/aborchi_m
-VK_USER_ACCESS_TOKEN=
-VK_GROUP_ID=
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHANNEL_USERNAME=aborchi_m
-VK_PUBLISH_DAYS=
-SETKA_PUBLISH_DAYS=
-LOG_LEVEL=INFO
+- Базовый образ mcr.microsoft.com/playwright/python (включает Chromium).
+- Один сервис race-monitor в docker-compose.yml, запуск через entrypoint.sh.
+- Тома: data/ и logs/; google-credentials.json — read-only;
+  session.session — read-write для сессии Telethon.
+- Расписание 06:02 Europe/Lisbon реализовано циклом ожидания в entrypoint.sh
+  (без cron). TZ фиксируется через TZ=Europe/Lisbon.
+- Сценарий на сервере: git clone, настройка .env и google-credentials.json,
+  затем docker compose up -d.
 
-10) DOCKER
+10) ЛОКАЛЬНЫЙ ЗАПУСК
 -------------------------------------------
-Dockerfile:
-FROM python:3.11-slim
-WORKDIR /app
-RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-COPY sa.json /app/sa.json
-COPY . /app
-ENV PYTHONUNBUFFERED=1
-CMD ["python", "-m", "publisher.run"]
-
-requirements.txt:
-gspread
-google-auth
-requests
-python-dotenv
-pytz
-tenacity
-
-docker-compose.yml:
-version: "3.9"
-services:
-  publisher:
-    build: .
-    restart: unless-stopped
-    env_file:
-      - .env
-    volumes:
-      - ./logs:/app/logs
-
-10) СТРУКТУРА КОДА
--------------------------------------------
-/publisher
-  /gs/sheets.py
-  /vk/client.py
-  /tg/client.py
-  /telegraph/client.py
-  /core/logger.py
-  /core/retry.py
-  run.py
-
-11) ПСЕВДОКОД
--------------------------------------------
-RSS:
-  read RSS rows → create telegraph → append short + link → post VK + TG → write URLs → set Published
-
-VK:
-  read VK rows → wall.post → write link → Published
-
-Setka:
-  read Setka rows → sendPhoto → write link → Published
-
-12) ПОДГОТОВКА
--------------------------------------------
-1) Сервис-аккаунт Google с правами редактирования.
-2) VK Access Token (wall, photos, offline).
-3) Telegram Bot (admin в канале).
-4) Telegraph access_token (или авто-создание).
+- virtualenv + зависимости из requirements.txt.
+- Установить Chromium через Playwright.
+- Скрипт run_local.sh.
