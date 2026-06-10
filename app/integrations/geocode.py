@@ -6,19 +6,19 @@ from typing import Any
 import requests
 
 
-_COORDS_RE = re.compile(
-    r"(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)"
-)
+_NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
 _LAST_REQUEST_TS: float | None = None
 _CACHE: dict[str, tuple[float, float, bool]] = {}
 
 
 def parse_coordinates(text: str) -> tuple[float, float] | None:
-    match = _COORDS_RE.search(text)
-    if not match:
+    # Берём первые два числа в тексте — это устойчиво к подписям вида
+    # "Lat: 38.7223, Lon: -9.1393" и к простому "38.7223 -9.1393".
+    numbers = _NUMBER_RE.findall(text)
+    if len(numbers) < 2:
         return None
-    lat = float(match.group(1))
-    lon = float(match.group(2))
+    lat = float(numbers[0])
+    lon = float(numbers[1])
     return lat, lon
 
 
