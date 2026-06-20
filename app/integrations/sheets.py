@@ -4,7 +4,6 @@ from typing import cast
 import gspread
 from google.oauth2.service_account import Credentials
 
-from app.integrations.url_normalize import normalize_url
 from app.utils.retry import run_with_retries
 
 
@@ -56,14 +55,20 @@ def write_missing_races(
     return run_with_retries(_action, logger=logger, action_name="запись Missing races")
 
 
-def fetch_known_urls(
+def fetch_known_websites(
     sheet_id: str,
     worksheet_name: str,
     url_column: str,
     credentials_path: str,
     logger: logging.Logger,
-) -> set[str]:
-    def _action() -> set[str]:
+) -> list[str]:
+    """Возвращает сырые значения колонки WEBSITE (без заголовка, без пустых).
+
+    Сырые URL нужны для построения индекса сопоставления (host/path), а не
+    только множества нормализованных строк.
+    """
+
+    def _action() -> list[str]:
         credentials = Credentials.from_service_account_file(
             credentials_path,
             scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
@@ -82,12 +87,8 @@ def fetch_known_urls(
         if values:
             values = values[1:]
 
-        normalized = {
-            normalize_url(value)
-            for value in values
-            if value and value.strip()
-        }
-        return cast(set[str], normalized)
+        websites = [value.strip() for value in values if value and value.strip()]
+        return cast(list[str], websites)
 
     return run_with_retries(_action, logger=logger, action_name="чтение Google Sheets")
 

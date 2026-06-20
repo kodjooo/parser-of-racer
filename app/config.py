@@ -2,6 +2,13 @@ import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
+from app.integrations.matching import (
+    DEFAULT_CONTAINER_SEGMENTS,
+    DEFAULT_LANG_PREFIXES,
+    DEFAULT_SERVICE_BLOCKLIST,
+    DEFAULT_SUBPAGE_SEGMENTS,
+)
+
 
 def _parse_bool(value: str | None, default: bool) -> bool:
     if value is None:
@@ -13,6 +20,12 @@ def _parse_int(value: str | None, default: int) -> int:
     if value is None or value.strip() == "":
         return default
     return int(value)
+
+
+def _parse_csv(value: str | None, default: tuple[str, ...]) -> tuple[str, ...]:
+    if value is None or value.strip() == "":
+        return default
+    return tuple(item.strip().lower() for item in value.split(",") if item.strip())
 
 
 @dataclass(frozen=True)
@@ -51,6 +64,12 @@ class Config:
     opencage_base_url: str
     opencage_api_key: str
     opencage_delay_sec: float
+    canonical_lang_prefixes: tuple[str, ...]
+    subpage_segments: tuple[str, ...]
+    container_segments: tuple[str, ...]
+    service_page_blocklist: tuple[str, ...]
+    block_homepage: bool
+    block_generic_forms: bool
 
 
 REQUIRED_ENV = [
@@ -129,4 +148,18 @@ def load_config() -> Config:
         ),
         opencage_api_key=os.environ["OPENCAGE_API_KEY"],
         opencage_delay_sec=float(os.getenv("OPENCAGE_DELAY_SEC", "1.0")),
+        canonical_lang_prefixes=_parse_csv(
+            os.getenv("CANONICAL_LANG_PREFIXES"), DEFAULT_LANG_PREFIXES
+        ),
+        subpage_segments=_parse_csv(
+            os.getenv("SUBPAGE_SEGMENTS"), DEFAULT_SUBPAGE_SEGMENTS
+        ),
+        container_segments=_parse_csv(
+            os.getenv("CONTAINER_SEGMENTS"), DEFAULT_CONTAINER_SEGMENTS
+        ),
+        service_page_blocklist=_parse_csv(
+            os.getenv("SERVICE_PAGE_BLOCKLIST"), DEFAULT_SERVICE_BLOCKLIST
+        ),
+        block_homepage=_parse_bool(os.getenv("BLOCK_HOMEPAGE"), True),
+        block_generic_forms=_parse_bool(os.getenv("BLOCK_GENERIC_FORMS"), True),
     )

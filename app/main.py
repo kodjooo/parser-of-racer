@@ -5,7 +5,12 @@ import sys
 from playwright.sync_api import sync_playwright
 
 from app.config import load_config
-from app.integrations.sheets import fetch_known_urls, fetch_worksheet_gid, write_missing_races
+from app.integrations.matching import KnownIndex, MatchConfig, is_service_page
+from app.integrations.sheets import (
+    fetch_known_websites,
+    fetch_worksheet_gid,
+    write_missing_races,
+)
 from app.integrations.state import add_notified, get_notified_set, load_state, prune_known, save_state
 from app.integrations.telegram import chunk_lines, send_message
 from app.logging_setup import setup_logging
@@ -30,14 +35,28 @@ def main() -> int:
     logger = logging.getLogger("race_monitor")
     _log_config(logger, config)
 
-    known_urls = fetch_known_urls(
+    known_websites = fetch_known_websites(
         config.sheet_id,
         config.worksheet_name,
         config.url_column,
         config.google_credentials_path,
         logger,
     )
-    logger.info("Загружено известных URL: %s", len(known_urls))
+    match_config = MatchConfig(
+        lang_prefixes=config.canonical_lang_prefixes,
+        subpage_segments=config.subpage_segments,
+        container_segments=config.container_segments,
+        service_blocklist=config.service_page_blocklist,
+        block_homepage=config.block_homepage,
+        block_generic_forms=config.block_generic_forms,
+    )
+    known_index = KnownIndex(known_websites, match_config)
+    known_urls = known_index.exact
+    logger.info(
+        "Загружено известных URL: всего=%s уникальных(норм.)=%s",
+        len(known_websites),
+        len(known_urls),
+    )
 
     state = load_state(config.state_path)
     notified_set = get_notified_set(state)
@@ -103,27 +122,43 @@ def main() -> int:
 
     for source_name, url_map in source_results.items():
         scraped_set = set(url_map.keys())
-        new_candidates = scraped_set - known_urls
+        new_candidates: set[str] = set()
+        skipped_service = 0
+        skipped_duplicate = 0
+
+        for normalized in scraped_set:
+            url, _ = url_map[normalized]
+
+            if is_service_page(url, match_config):
+                skipped_service += 1
+                logger.info("Отфильтровано (служебная страница, D): %s", url)
+                continue
+
+            match = known_index.match(url)
+            if match is not None:
+                skipped_duplicate += 1
+                category, matched = match
+                logger.info("Дубль (%s): %s ~ %s", category, url, matched)
+                continue
+
+            new_candidates.add(normalized)
+
         to_notify = new_candidates
         to_notify_map[source_name] = to_notify
 
         logger.info(
-            "Источник %s: всего=%s новых=%s к отправке=%s",
+            "Источник %s: всего=%s служебных=%s дублей=%s новых=%s",
             source_name,
             len(scraped_set),
+            skipped_service,
+            skipped_duplicate,
             len(new_candidates),
-            len(to_notify),
         )
 
-        if new_candidates:
-            for normalized in sorted(new_candidates):
-                url, coords = url_map[normalized]
-                missing_candidates.append((source_name, url, coords))
-
-        if to_notify:
-            for normalized in sorted(to_notify):
-                url, coords = url_map[normalized]
-                missing_rows.append((source_name, url, coords))
+        for normalized in sorted(new_candidates):
+            url, coords = url_map[normalized]
+            missing_candidates.append((source_name, url, coords))
+            missing_rows.append((source_name, url, coords))
 
     if not config.dry_run:
         missing_gid = write_missing_races(
