@@ -21,6 +21,7 @@
 import datetime
 import logging
 import re
+import time
 
 import requests
 from playwright.sync_api import BrowserContext
@@ -30,22 +31,16 @@ from app.integrations.url_normalize import normalize_url
 from app.utils.retry import run_with_retries
 
 
-_KEY_RE = re.compile(r"export-events/[^\"']*?key=([a-f0-9]+)")
+# Ключ берём из пер-событийных ссылок экспорта (export-events/<id>_0/?key=...),
+# где лежит реальный глобальный ключ. ВАЖНО: страница кэшируется LiteSpeed и в
+# кэше ключ протухает (тогда /all/ отдаёт 500), поэтому грузим с cache-buster'ом.
+_KEY_RE = re.compile(r"export-events/\d+_0/\?key=([a-f0-9]+)")
 
 
-def _resolve_key(context: BrowserContext, page_url: str, timeout_ms: int, logger) -> str | None:
-    page = context.new_page()
-    page.set_default_timeout(timeout_ms)
-    try:
-        run_with_retries(
-            lambda: page.goto(page_url, wait_until="domcontentloaded"),
-            logger=logger,
-            action_name="загрузка страницы для ключа iCal",
-        )
-        html = page.content()
-    finally:
-        page.close()
-    match = _KEY_RE.search(html)
+def _resolve_key(page_url: str, logger) -> str | None:
+    response = requests.get(page_url, params={"nocache": str(int(time.time()))}, timeout=60)
+    response.raise_for_status()
+    match = _KEY_RE.search(response.text)
     return match.group(1) if match else None
 
 
@@ -110,13 +105,15 @@ def scrape_source2(
 
     key = ical_key.strip() if ical_key else ""
     if not key:
-        key = _resolve_key(context, page_url, timeout_ms, logger) or ""
+        key = _resolve_key(page_url, logger) or ""
         if not key:
             logger.error("Не удалось получить ключ iCal со страницы %s", page_url)
             return results
-        logger.info("Ключ iCal получен со страницы")
+        logger.info("Ключ iCal получен со страницы (cache-bust)")
 
-    response = requests.get(ical_url, params={"key": key}, timeout=60)
+    response = requests.get(
+        ical_url, params={"key": key, "nocache": str(int(time.time()))}, timeout=60
+    )
     response.raise_for_status()
     events = _parse_ical(response.text)
     logger.info("iCal: всего событий в фиде=%s", len(events))
