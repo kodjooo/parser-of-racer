@@ -8,12 +8,15 @@
   друг в друга (один является префиксом другого), либо отличаются только
   ведущим языковым сегментом (/pt, /en, ...).
 
-Категория C (новая редакция года — это новая трасса) соблюдается автоматически:
-год нигде не вырезается, поэтому `race-2025` и `race-2026` различаются в сегменте
-пути и НЕ схлопываются.
+- уровень B (кросс-платформенно): одно событие на разных сайтах/поддоменах,
+  опознаётся по совпадению slug события (последний значимый сегмент пути,
+  с годом). Применяется осторожно: slug должен быть достаточно длинным,
+  содержать буквы и не входить в стоп-лист общих слов; каждое совпадение
+  логируется для аудита. Включается флагом cross_platform_match.
 
-Категория B (кросс-платформенное совпадение по slug) добавляется отдельным
-этапом и здесь пока не реализована.
+Категория C (новая редакция года — это новая трасса) соблюдается автоматически:
+год нигде не вырезается, поэтому `race-2025` и `race-2026` различаются и в пути
+(A), и в slug (B), и НЕ схлопываются.
 """
 
 from dataclasses import dataclass, field
@@ -34,6 +37,22 @@ DEFAULT_SUBPAGE_SEGMENTS = (
 )
 DEFAULT_CONTAINER_SEGMENTS = ("eventos", "evento", "event", "events")
 DEFAULT_SERVICE_BLOCKLIST = ("organizadores-provas", "organizadores")
+# Категория B: «мусорные» последние сегменты, по которым НЕЛЬЗЯ сопоставлять
+# события между сайтами (слишком общие → ложные совпадения).
+DEFAULT_SLUG_STOPLIST = (
+    "info",
+    "viewform",
+    "inscritos",
+    "inscricao",
+    "inscricoes",
+    "resultados",
+    "classificacao",
+    "classificacoes",
+    "index",
+    "index.php",
+)
+# Минимальная длина slug для кросс-платформенного совпадения.
+DEFAULT_CROSS_PLATFORM_MIN_SLUG_LEN = 6
 
 # Минимальное число общих значимых токенов, чтобы считать дочерний сегмент
 # тем же событием, что и родительский slug.
@@ -50,6 +69,9 @@ class MatchConfig:
     service_blocklist: tuple[str, ...] = DEFAULT_SERVICE_BLOCKLIST
     block_homepage: bool = True
     block_generic_forms: bool = True
+    cross_platform_match: bool = True
+    cross_platform_min_slug_len: int = DEFAULT_CROSS_PLATFORM_MIN_SLUG_LEN
+    slug_stoplist: tuple[str, ...] = DEFAULT_SLUG_STOPLIST
 
 
 def _split(url: str) -> tuple[str, list[str], str]:
@@ -69,6 +91,27 @@ def _strip_lang(segments: list[str], lang_prefixes: tuple[str, ...]) -> list[str
 def _tokens(segment: str) -> set[str]:
     raw = segment.lower().replace("_", "-").split("-")
     return {tok for tok in raw if len(tok) >= _MIN_TOKEN_LEN}
+
+
+def _event_slug(url: str) -> str | None:
+    """Последний значимый сегмент пути как сигнатура события (с годом).
+
+    Год НЕ вырезается, поэтому `race-2025` и `race-2026` дают разные slug —
+    категория C соблюдается.
+    """
+    _, segments, _ = _split(url)
+    if not segments:
+        return None
+    return segments[-1].lower().replace("_", "-")
+
+
+def _slug_is_usable(slug: str, config: MatchConfig) -> bool:
+    if len(slug) < config.cross_platform_min_slug_len:
+        return False
+    if slug in config.slug_stoplist:
+        return False
+    # должна быть хотя бы одна буква (исключаем чисто числовые id типа "425")
+    return any(ch.isalpha() for ch in slug)
 
 
 def is_service_page(url: str, config: MatchConfig) -> bool:
@@ -101,6 +144,7 @@ class KnownIndex:
     config: MatchConfig = field(default_factory=MatchConfig)
     exact: set[str] = field(init=False, default_factory=set)
     by_host: dict[str, list[list[str]]] = field(init=False, default_factory=dict)
+    by_slug: dict[str, str] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
         for raw in self.websites:
@@ -110,6 +154,12 @@ class KnownIndex:
             host, segments, _ = _split(raw)
             segments = _strip_lang(segments, self.config.lang_prefixes)
             self.by_host.setdefault(host, []).append(segments)
+
+            if self.config.cross_platform_match:
+                slug = _event_slug(raw)
+                if slug and _slug_is_usable(slug, self.config):
+                    # первый встретившийся известный URL для этого slug
+                    self.by_slug.setdefault(slug, raw)
 
     def match(self, url: str) -> tuple[str, str] | None:
         """Возвращает (категория, с_чем_совпало) или None, если трасса новая."""
@@ -123,6 +173,14 @@ class KnownIndex:
         for known_segments in self.by_host.get(host, []):
             if self._is_parent_child(segments, known_segments):
                 return ("A", host + "/" + "/".join(known_segments))
+
+        # Уровень B: кросс-платформенно по slug события (с годом).
+        if self.config.cross_platform_match:
+            slug = _event_slug(url)
+            if slug and _slug_is_usable(slug, self.config):
+                known_url = self.by_slug.get(slug)
+                if known_url is not None:
+                    return ("B", known_url)
 
         return None
 

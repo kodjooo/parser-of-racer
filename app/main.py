@@ -49,6 +49,9 @@ def main() -> int:
         service_blocklist=config.service_page_blocklist,
         block_homepage=config.block_homepage,
         block_generic_forms=config.block_generic_forms,
+        cross_platform_match=config.cross_platform_match,
+        cross_platform_min_slug_len=config.cross_platform_min_slug_len,
+        slug_stoplist=config.slug_stoplist,
     )
     known_index = KnownIndex(known_websites, match_config)
     known_urls = known_index.exact

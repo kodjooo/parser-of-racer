@@ -85,7 +85,43 @@ def test_container_segment_does_not_collapse_events() -> None:
     assert idx.match("https://acorrer.pt/eventos/cabrum-360") is None
 
 
-def test_different_host_not_matched_in_stage1() -> None:
-    # Кросс-платформенный матч (B) на этапе 1 не делается
+# --- Категория B: кросс-платформенно по slug ---
+
+def test_b_cross_platform_same_slug() -> None:
     idx = KnownIndex(["https://waitastart.com/corrida-das-fogueiras-2026"])
+    result = idx.match("https://nativewarriors.pt/evento/corrida-das-fogueiras-2026")
+    assert result is not None and result[0] == "B"
+
+
+def test_b_cross_subdomain_with_id() -> None:
+    idx = KnownIndex(
+        ["https://ultramelidestroia.bol.pt/Comprar/Bilhetes/172727-corrida_atlantica_2026-troia_grandola/"]
+    )
+    result = idx.match(
+        "https://www.bol.pt/Comprar/Bilhetes/172727-corrida_atlantica_2026-troia_grandola/"
+    )
+    assert result is not None and result[0] == "B"
+
+
+def test_b_different_year_not_matched() -> None:
+    # категория C важнее B: разный год — разные события
+    idx = KnownIndex(["https://waitastart.com/corrida-das-fogueiras-2025"])
+    assert idx.match("https://nativewarriors.pt/evento/corrida-das-fogueiras-2026") is None
+
+
+def test_b_numeric_only_slug_not_matched() -> None:
+    # чисто числовой id ("425") не должен матчить между сайтами
+    idx = KnownIndex(["https://www.sinctime.com/evento/425"])
+    assert idx.match("https://other-platform.pt/evento/425") is None
+
+
+def test_b_generic_slug_info_not_matched() -> None:
+    # "info" в стоп-листе — разные события acorrer не схлопываются
+    idx = KnownIndex(["https://acorrer.pt/eventos/4119/info"])
+    assert idx.match("https://acorrer.pt/eventos/4313/info") is None
+
+
+def test_b_disabled_by_config() -> None:
+    cfg = MatchConfig(cross_platform_match=False)
+    idx = KnownIndex(["https://waitastart.com/corrida-das-fogueiras-2026"], cfg)
     assert idx.match("https://nativewarriors.pt/evento/corrida-das-fogueiras-2026") is None

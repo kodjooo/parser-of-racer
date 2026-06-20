@@ -4,8 +4,10 @@ from dotenv import load_dotenv
 
 from app.integrations.matching import (
     DEFAULT_CONTAINER_SEGMENTS,
+    DEFAULT_CROSS_PLATFORM_MIN_SLUG_LEN,
     DEFAULT_LANG_PREFIXES,
     DEFAULT_SERVICE_BLOCKLIST,
+    DEFAULT_SLUG_STOPLIST,
     DEFAULT_SUBPAGE_SEGMENTS,
 )
 
@@ -70,6 +72,9 @@ class Config:
     service_page_blocklist: tuple[str, ...]
     block_homepage: bool
     block_generic_forms: bool
+    cross_platform_match: bool
+    cross_platform_min_slug_len: int
+    slug_stoplist: tuple[str, ...]
 
 
 REQUIRED_ENV = [
@@ -162,4 +167,10 @@ def load_config() -> Config:
         ),
         block_homepage=_parse_bool(os.getenv("BLOCK_HOMEPAGE"), True),
         block_generic_forms=_parse_bool(os.getenv("BLOCK_GENERIC_FORMS"), True),
+        cross_platform_match=_parse_bool(os.getenv("CROSS_PLATFORM_MATCH"), True),
+        cross_platform_min_slug_len=_parse_int(
+            os.getenv("CROSS_PLATFORM_MIN_SLUG_LEN"),
+            DEFAULT_CROSS_PLATFORM_MIN_SLUG_LEN,
+        ),
+        slug_stoplist=_parse_csv(os.getenv("SLUG_STOPLIST"), DEFAULT_SLUG_STOPLIST),
     )
