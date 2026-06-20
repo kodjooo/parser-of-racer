@@ -93,6 +93,38 @@ def fetch_known_websites(
     return run_with_retries(_action, logger=logger, action_name="чтение Google Sheets")
 
 
+def fetch_known_names(
+    sheet_id: str,
+    worksheet_name: str,
+    name_columns: tuple[str, ...],
+    credentials_path: str,
+    logger: logging.Logger,
+) -> list[str]:
+    """Возвращает названия трасс из указанных колонок (RACE NAME, RACE NAME (PT))."""
+
+    def _action() -> list[str]:
+        credentials = Credentials.from_service_account_file(
+            credentials_path,
+            scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
+        )
+        client = gspread.authorize(credentials)
+        worksheet = client.open_by_key(sheet_id).worksheet(worksheet_name)
+        header = worksheet.row_values(1)
+
+        names: list[str] = []
+        for column_name in name_columns:
+            try:
+                column_index = _get_column_index(header, column_name)
+            except ValueError:
+                logger.warning("Колонка названия '%s' не найдена, пропуск", column_name)
+                continue
+            values = worksheet.col_values(column_index)[1:]
+            names.extend(value.strip() for value in values if value and value.strip())
+        return cast(list[str], names)
+
+    return run_with_retries(_action, logger=logger, action_name="чтение названий RACES")
+
+
 def fetch_worksheet_gid(
     sheet_id: str,
     worksheet_name: str,

@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 from urllib.parse import urljoin
 
@@ -63,7 +64,7 @@ def scrape_source1(
     page = context.new_page()
     page.set_default_timeout(timeout_ms)
 
-    results: dict[str, tuple[str, str]] = {}
+    results: dict[str, tuple[str, str, str]] = {}
     detail_page = context.new_page()
     detail_page.set_default_timeout(timeout_ms)
 
@@ -128,8 +129,17 @@ def scrape_source1(
                     logger.debug("Событие вне Португалии: %s", absolute)
                     continue
 
+                # Название события из <title> страницы (до разделителя),
+                # напр. "EDP Meia Maratona de Lisboa 2027 - Lisboa | ...".
+                name = ""
+                try:
+                    raw_title = detail_page.title()
+                    name = re.split(r"\s[-|]\s", raw_title)[0].strip()
+                except Exception:  # noqa: BLE001
+                    name = ""
+
                 coord_str = format_coordinates(lat, lon)
-                results[normalized] = (absolute, coord_str)
+                results[normalized] = (absolute, coord_str, name)
                 added += 1
             else:
                 logger.debug("Дубликат после нормализации: %s", absolute)

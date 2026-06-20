@@ -19,10 +19,15 @@
 (A), и в slug (B), и НЕ схлопываются.
 """
 
+import re
+import unicodedata
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
 from app.integrations.url_normalize import normalize_url
+
+
+_YEAR_RE = re.compile(r"20\d{2}")
 
 
 DEFAULT_LANG_PREFIXES = ("pt", "en", "es", "fr", "pt-pt", "en-us")
@@ -72,6 +77,7 @@ class MatchConfig:
     cross_platform_match: bool = True
     cross_platform_min_slug_len: int = DEFAULT_CROSS_PLATFORM_MIN_SLUG_LEN
     slug_stoplist: tuple[str, ...] = DEFAULT_SLUG_STOPLIST
+    name_match: bool = True
 
 
 def _split(url: str) -> tuple[str, list[str], str]:
@@ -114,6 +120,24 @@ def _slug_is_usable(slug: str, config: MatchConfig) -> bool:
     return any(ch.isalpha() for ch in slug)
 
 
+def normalize_event_name(name: str) -> str:
+    """Нормализация названия события для сравнения.
+
+    Убирает диакритику (Mâmoa→mamoa), приводит к нижнему регистру, схлопывает
+    пунктуацию/пробелы. Год (цифры) СОХРАНЯЕТСЯ — категория C: «Trail X 2025» и
+    «Trail X 2026» остаются разными.
+    """
+    folded = unicodedata.normalize("NFKD", name)
+    folded = folded.encode("ascii", "ignore").decode("ascii")
+    folded = folded.lower()
+    folded = re.sub(r"[^a-z0-9]+", " ", folded)
+    return folded.strip()
+
+
+def _name_has_year(normalized_name: str) -> bool:
+    return bool(_YEAR_RE.search(normalized_name))
+
+
 def is_service_page(url: str, config: MatchConfig) -> bool:
     """Категория D: служебные/индексные страницы, не относящиеся к гонкам."""
     host, segments, query = _split(url)
@@ -142,9 +166,11 @@ class KnownIndex:
 
     websites: list[str]
     config: MatchConfig = field(default_factory=MatchConfig)
+    names: list[str] = field(default_factory=list)
     exact: set[str] = field(init=False, default_factory=set)
     by_host: dict[str, list[list[str]]] = field(init=False, default_factory=dict)
     by_slug: dict[str, str] = field(init=False, default_factory=dict)
+    by_name: dict[str, str] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
         for raw in self.websites:
@@ -161,8 +187,22 @@ class KnownIndex:
                     # первый встретившийся известный URL для этого slug
                     self.by_slug.setdefault(slug, raw)
 
-    def match(self, url: str) -> tuple[str, str] | None:
-        """Возвращает (категория, с_чем_совпало) или None, если трасса новая."""
+        # Индекс названий (RACE NAME + RACE NAME (PT)). Только названия с годом —
+        # это обеспечивает «имя + год строго» и исключает общие названия без года.
+        if self.config.name_match:
+            for name in self.names:
+                if not name or not name.strip():
+                    continue
+                norm = normalize_event_name(name)
+                if norm and _name_has_year(norm):
+                    self.by_name.setdefault(norm, name.strip())
+
+    def match(self, url: str, name: str | None = None) -> tuple[str, str] | None:
+        """Возвращает (категория, с_чем_совпало) или None, если трасса новая.
+
+        Если передано name — дополнительно проверяется совпадение по названию
+        (имя + год строго), уровень N.
+        """
         norm = normalize_url(url)
         if norm in self.exact:
             return ("exact", norm)
@@ -182,7 +222,22 @@ class KnownIndex:
                 if known_url is not None:
                     return ("B", known_url)
 
+        # Уровень N: совпадение по названию + год (кросс-платформенно).
+        if name is not None:
+            name_match = self.match_name(name)
+            if name_match is not None:
+                return ("N", name_match)
+
         return None
+
+    def match_name(self, name: str) -> str | None:
+        """Совпадение по нормализованному названию (имя + год строго)."""
+        if not self.config.name_match or not name:
+            return None
+        norm = normalize_event_name(name)
+        if not norm or not _name_has_year(norm):
+            return None
+        return self.by_name.get(norm)
 
     def _is_parent_child(self, a: list[str], b: list[str]) -> bool:
         # Совпадение после срезания языкового префикса (/pt/ ≡ без префикса).
@@ -211,6 +266,14 @@ class KnownIndex:
         # Случай 2: один лишний сегмент, разделяющий значимые токены с родителем
         # (corrida-s-joao ≡ corrida-s-joao/corrida-de-s-joao-2026).
         if len(extra) == 1:
+            # Защита категории C: не схлопывать «безгодовый» родитель с годовым
+            # ребёнком — иначе можно спрятать новую годовую редакцию. Матч
+            # допускается только если год ребёнка уже присутствует у родителя
+            # (или года нет вовсе).
+            child_years = set(_YEAR_RE.findall(extra[0]))
+            parent_years = set(_YEAR_RE.findall(shorter[-1]))
+            if child_years and not child_years <= parent_years:
+                return False
             overlap = _tokens(shorter[-1]) & _tokens(extra[0])
             if len(overlap) >= _MIN_TOKEN_OVERLAP:
                 return True

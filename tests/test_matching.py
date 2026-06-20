@@ -1,4 +1,9 @@
-from app.integrations.matching import KnownIndex, MatchConfig, is_service_page
+from app.integrations.matching import (
+    KnownIndex,
+    MatchConfig,
+    is_service_page,
+    normalize_event_name,
+)
 
 
 CFG = MatchConfig()
@@ -57,11 +62,30 @@ def test_child_subpage_inscritos() -> None:
     assert result is not None and result[0] == "A"
 
 
-def test_child_deeper_path_shared_tokens() -> None:
+def test_child_deeper_path_shared_tokens_no_year() -> None:
+    # дочерний сегмент без года, общие токены — это тот же забег
+    idx = KnownIndex(
+        ["https://runporto.com/pt/eventos/corrida-s-joao/corrida-de-s-joao/"]
+    )
+    result = idx.match("https://runporto.com/pt/eventos/corrida-s-joao/")
+    assert result is not None and result[0] == "A"
+
+
+def test_c_protection_yearless_parent_year_child_not_matched() -> None:
+    # Защита C: безгодовый родитель НЕ схлопывается с годовым ребёнком,
+    # иначе можно спрятать новую годовую редакцию.
     idx = KnownIndex(
         ["https://runporto.com/pt/eventos/corrida-s-joao/corrida-de-s-joao-2026/"]
     )
-    result = idx.match("https://runporto.com/pt/eventos/corrida-s-joao/")
+    assert idx.match("https://runporto.com/pt/eventos/corrida-s-joao/") is None
+
+
+def test_child_same_year_in_parent_matched() -> None:
+    # если год ребёнка уже есть у родителя — матч допустим
+    idx = KnownIndex(
+        ["https://runporto.com/pt/eventos/corrida-2026/corrida-de-s-joao-2026/"]
+    )
+    result = idx.match("https://runporto.com/pt/eventos/corrida-2026/")
     assert result is not None and result[0] == "A"
 
 
@@ -125,3 +149,40 @@ def test_b_disabled_by_config() -> None:
     cfg = MatchConfig(cross_platform_match=False)
     idx = KnownIndex(["https://waitastart.com/corrida-das-fogueiras-2026"], cfg)
     assert idx.match("https://nativewarriors.pt/evento/corrida-das-fogueiras-2026") is None
+
+
+# --- Категория N: совпадение по названию + год ---
+
+def test_name_normalization_strips_accents_keeps_year() -> None:
+    assert normalize_event_name("Mâmoa River Trail 2025") == "mamoa river trail 2025"
+    assert normalize_event_name("Trail do Queijo da Fajãzinha 2026") == "trail do queijo da fajazinha 2026"
+
+
+def test_name_match_same_name_year() -> None:
+    idx = KnownIndex([], names=["Mâmoa River Trail 2025"])
+    result = idx.match("https://some-other-site.pt/event/mamoa-2025", name="Mamoa River Trail 2025")
+    assert result is not None and result[0] == "N"
+
+
+def test_name_match_different_year_not_matched() -> None:
+    idx = KnownIndex([], names=["Mâmoa River Trail 2025"])
+    assert idx.match("https://x.pt/e", name="Mâmoa River Trail 2026") is None
+
+
+def test_name_match_requires_year() -> None:
+    # название без года не индексируется и не матчится (имя+год строго)
+    idx = KnownIndex([], names=["Mamoa River Trail"])
+    assert idx.match("https://x.pt/e", name="Mamoa River Trail") is None
+
+
+def test_name_match_pt_column() -> None:
+    # совпадение с португальским названием
+    idx = KnownIndex([], names=["São Silvestre de Lisboa 2026"])
+    result = idx.match("https://x.pt/e", name="Sao Silvestre de Lisboa 2026")
+    assert result is not None and result[0] == "N"
+
+
+def test_name_match_disabled() -> None:
+    cfg = MatchConfig(name_match=False)
+    idx = KnownIndex([], MatchConfig(name_match=False), names=["Mâmoa River Trail 2025"])
+    assert idx.match("https://x.pt/e", name="Mâmoa River Trail 2025") is None

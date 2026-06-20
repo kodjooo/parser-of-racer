@@ -1,233 +1,195 @@
+"""Источник 2 — portugalrunning.com (через iCal-фид EventON).
+
+Старый помесячный обход DOM сломался: сайт переделали (нет #evcal_next/#evcal_cur),
+а список на странице показывает только текущий месяц. Полный календарь доступен
+через экспорт-фид EventON:
+
+    https://www.portugalrunning.com/export-events/all/?key=<KEY>
+
+Фид (text/calendar) содержит ВСЕ события с названием (SUMMARY, с годом),
+локацией (LOCATION), датой (DTSTART) и канонической ссылкой (URL).
+
+Логика:
+1) Получить key (из .env или со страницы календаря).
+2) Скачать iCal, распарсить, отобрать будущие события.
+3) Дедуп по названию (имя + год) через known_index — чтобы НЕ открывать
+   страницы уже известных трасс.
+4) Для новых: открыть карточку события, взять внешнюю регистрационную ссылку
+   (как делал прежний скрипт), геокодировать локацию (OpenCage, Португалия).
+"""
+
+import datetime
 import logging
-import time
-from urllib.parse import urljoin
+import re
 
-from playwright.sync_api import BrowserContext, TimeoutError as PlaywrightTimeoutError
+import requests
+from playwright.sync_api import BrowserContext
 
-from app.integrations.geocode import (
-    format_coordinates,
-    geocode_location_portugal,
-)
+from app.integrations.geocode import format_coordinates, geocode_location_portugal
 from app.integrations.url_normalize import normalize_url
 from app.utils.retry import run_with_retries
 
 
-def _extract_month_listing_links(page, list_selector: str) -> list[str]:
-    locator = page.locator(list_selector)
-    links: list[str] = []
-    for idx in range(locator.count()):
-        href = locator.nth(idx).get_attribute("href")
-        if href:
-            links.append(href)
-    return links
+_KEY_RE = re.compile(r"export-events/[^\"']*?key=([a-f0-9]+)")
 
 
-def _extract_event_entries(
-    page,
-    list_selector: str,
-    link_selector: str,
-    location_selector: str,
-) -> list[tuple[str, str]]:
-    entries: list[tuple[str, str]] = []
-    list_locator = page.locator(list_selector)
-    for idx in range(list_locator.count()):
-        event_root = list_locator.nth(idx)
-        link_locator = event_root.locator(link_selector)
-        href = link_locator.first.get_attribute("href") if link_locator.count() > 0 else None
-        if not href:
-            continue
-        location_locator = event_root.locator(location_selector)
-        if location_locator.count() == 0:
-            location_locator = page.locator(location_selector)
-        location_text = (
-            location_locator.first.inner_text().strip()
-            if location_locator.count() > 0
-            else ""
-        )
-        entries.append((href, location_text))
-    return entries
-
-
-def _get_month_marker(page) -> str:
-    selectors = [
-        "#evcal_cur",
-        ".eventon_fullcal .evo_month_title",
-        ".eventon_fullcal .evcal_month_line",
-        "#evcal_head",
-    ]
-    for selector in selectors:
-        locator = page.locator(selector)
-        if locator.count() > 0:
-            text = locator.first.inner_text().strip()
-            if text:
-                return text
-    first_link_locator = page.locator("a.evcal_evdata_row")
-    if first_link_locator.count() > 0:
-        href = first_link_locator.first.get_attribute("href")
-        if href:
-            return href
-    return ""
-
-
-def _get_all_month_markers(page) -> list[str]:
-    locator = page.locator("#evcal_cur")
-    markers: list[str] = []
-    for idx in range(locator.count()):
-        text = locator.nth(idx).inner_text().strip()
-        if text:
-            markers.append(text)
-    return markers
-
-
-def _dismiss_cookie_overlay(page, logger: logging.Logger) -> None:
-    selectors = [
-        "button:has-text('Accept')",
-        "button:has-text('I agree')",
-        "button:has-text('Aceitar')",
-        "button:has-text('Concordo')",
-        "button#fc-cta-consent",
-        "button.fc-cta-consent",
-        "button[aria-label='Accept']",
-        "button[aria-label='accept']",
-    ]
-    for selector in selectors:
-        locator = page.locator(selector)
-        if locator.count() == 0:
-            continue
-        try:
-            locator.first.click(timeout=2000)
-            logger.debug("Закрыт баннер cookies: %s", selector)
-            break
-        except Exception:
-            continue
-
+def _resolve_key(context: BrowserContext, page_url: str, timeout_ms: int, logger) -> str | None:
+    page = context.new_page()
+    page.set_default_timeout(timeout_ms)
     try:
-        page.evaluate(
-            "() => {"
-            "const root = document.querySelector('.fc-consent-root');"
-            "if (root) { root.remove(); }"
-            "const overlay = document.querySelector('.fc-dialog-overlay');"
-            "if (overlay) { overlay.remove(); }"
-            "const faq = document.querySelector('.fc-faq-icon');"
-            "if (faq) { faq.remove(); }"
-            "}"
+        run_with_retries(
+            lambda: page.goto(page_url, wait_until="domcontentloaded"),
+            logger=logger,
+            action_name="загрузка страницы для ключа iCal",
         )
-        logger.debug("Удален overlay cookies через JS")
-    except Exception:
-        pass
+        html = page.content()
+    finally:
+        page.close()
+    match = _KEY_RE.search(html)
+    return match.group(1) if match else None
+
+
+def _parse_ical(text: str) -> list[dict[str, str]]:
+    # Развёртка свёрнутых строк (RFC 5545: продолжение начинается с пробела/таба).
+    lines: list[str] = []
+    for raw in text.split("\n"):
+        if raw[:1] in (" ", "\t") and lines:
+            lines[-1] += raw[1:]
+        else:
+            lines.append(raw.rstrip("\r"))
+
+    events: list[dict[str, str]] = []
+    current: dict[str, str] | None = None
+    for line in lines:
+        if line == "BEGIN:VEVENT":
+            current = {}
+        elif line == "END:VEVENT":
+            if current is not None:
+                events.append(current)
+            current = None
+        elif current is not None and ":" in line:
+            key, value = line.split(":", 1)
+            key = key.split(";")[0]
+            current[key] = value.replace("\\,", ",").replace("\\;", ";").strip()
+    return events
+
+
+def _event_date(event: dict[str, str]) -> datetime.date | None:
+    value = event.get("DTSTART", "")[:8]
+    try:
+        return datetime.date(int(value[:4]), int(value[4:6]), int(value[6:8]))
+    except (ValueError, IndexError):
+        return None
+
+
+def _clean_location(location: str) -> str:
+    loc = location.strip()
+    # EventON дублирует строку локации ("X, Y X, Y") — берём первую половину.
+    half = len(loc) // 2
+    first, second = loc[:half].strip().strip(","), loc[half:].strip().strip(",")
+    if first and first == second:
+        return first
+    return loc
 
 
 def scrape_source2(
     context: BrowserContext,
-    base_url: str,
-    next_button_selector: str,
-    month_list_links_selector: str,
-    list_selector: str,
-    link_selector: str,
-    location_selector: str,
+    ical_url: str,
+    ical_key: str,
+    page_url: str,
+    months_ahead: int,
+    reg_link_selector: str,
     timeout_ms: int,
     opencage_base_url: str,
     opencage_api_key: str,
     opencage_delay_sec: float,
+    known_index,
     logger: logging.Logger,
-) -> dict[str, tuple[str, str]]:
-    page = context.new_page()
-    page.set_default_timeout(timeout_ms)
+) -> dict[str, tuple[str, str, str]]:
+    results: dict[str, tuple[str, str, str]] = {}
 
-    run_with_retries(
-        lambda: page.goto(base_url, wait_until="networkidle"),
-        logger=logger,
-        action_name="загрузка календаря",
-    )
-    page.wait_for_selector(next_button_selector)
-    _dismiss_cookie_overlay(page, logger)
+    key = ical_key.strip() if ical_key else ""
+    if not key:
+        key = _resolve_key(context, page_url, timeout_ms, logger) or ""
+        if not key:
+            logger.error("Не удалось получить ключ iCal со страницы %s", page_url)
+            return results
+        logger.info("Ключ iCal получен со страницы")
 
-    results: dict[str, tuple[str, str]] = {}
+    response = requests.get(ical_url, params={"key": key}, timeout=60)
+    response.raise_for_status()
+    events = _parse_ical(response.text)
+    logger.info("iCal: всего событий в фиде=%s", len(events))
+
+    today = datetime.date.today()
+    cutoff = today + datetime.timedelta(days=months_ahead * 31) if months_ahead > 0 else None
+
     detail_page = context.new_page()
     detail_page.set_default_timeout(timeout_ms)
-    for index in range(13):
-        listing_links = _extract_month_listing_links(page, month_list_links_selector)
-        if not listing_links:
-            logger.warning("Не найдены ссылки карточек в месяце %s", index + 1)
+    try:
+        future = 0
+        skipped_known = 0
+        for event in events:
+            event_date = _event_date(event)
+            if not event_date or event_date < today:
+                continue
+            if cutoff and event_date > cutoff:
+                continue
+            future += 1
 
-        for href in listing_links:
-            absolute = urljoin(page.url, href)
-            def _open_detail() -> None:
-                detail_page.goto(absolute, wait_until="networkidle")
+            name = event.get("SUMMARY", "").strip()
+            canon_url = event.get("URL", "").strip()
+            location = _clean_location(event.get("LOCATION", ""))
 
-            run_with_retries(_open_detail, logger=logger, action_name="загрузка карточки")
-            entries = _extract_event_entries(
-                detail_page,
-                list_selector,
-                link_selector,
-                location_selector,
+            # Дедуп по названию (имя + год) — не открываем страницы известных трасс.
+            if name and known_index is not None and known_index.match_name(name):
+                skipped_known += 1
+                continue
+
+            if not location:
+                logger.warning("Нет локации для события %s", name or canon_url)
+                continue
+
+            coords = geocode_location_portugal(
+                location,
+                opencage_base_url,
+                opencage_api_key,
+                opencage_delay_sec,
+                logger,
             )
-            if not entries:
-                logger.warning("Не найдены ссылки событий в карточке %s", absolute)
-            for detail_href, location_text in entries:
-                detail_absolute = urljoin(detail_page.url, detail_href)
-                normalized = normalize_url(detail_absolute)
-                if normalized not in results:
-                    if not location_text:
-                        logger.warning("Не найдена локация для события %s", detail_absolute)
-                        continue
+            if not coords:
+                logger.debug("Событие вне Португалии: %s (%s)", name, location)
+                continue
 
-                    coords = geocode_location_portugal(
-                        location_text,
-                        opencage_base_url,
-                        opencage_api_key,
-                        opencage_delay_sec,
-                        logger,
+            # Внешняя регистрационная ссылка со страницы события (как раньше).
+            table_url = canon_url
+            if canon_url:
+                try:
+                    run_with_retries(
+                        lambda: detail_page.goto(canon_url, wait_until="domcontentloaded"),
+                        logger=logger,
+                        action_name="загрузка карточки события",
                     )
-                    if not coords:
-                        logger.debug("Событие вне Португалии: %s", detail_absolute)
-                        continue
+                    link = detail_page.locator(reg_link_selector)
+                    if link.count() > 0:
+                        href = link.first.get_attribute("href")
+                        if href:
+                            table_url = href
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Не удалось открыть карточку %s: %s", canon_url, exc)
 
-                    lat, lon = coords
-                    coord_str = format_coordinates(lat, lon)
-                    logger.debug("Итоговая ссылка события: %s", detail_absolute)
-                    results[normalized] = (detail_absolute, coord_str)
+            lat, lon = coords
+            normalized = normalize_url(table_url)
+            if normalized not in results:
+                results[normalized] = (table_url, format_coordinates(lat, lon), name)
 
-        if index == 12:
-            break
+        logger.info(
+            "iCal: будущих=%s пропущено_известных_по_имени=%s к проверке=%s",
+            future,
+            skipped_known,
+            len(results),
+        )
+    finally:
+        detail_page.close()
 
-        marker_before = _get_month_marker(page)
-        links_before = set(_extract_month_listing_links(page, month_list_links_selector))
-        logger.debug("Маркер месяца до клика: %s", marker_before)
-
-        def _click_next() -> None:
-            _dismiss_cookie_overlay(page, logger)
-            page.click(next_button_selector)
-
-        run_with_retries(_click_next, logger=logger, action_name="переход на следующий месяц")
-
-        def _wait_for_change() -> None:
-            deadline = time.monotonic() + 10
-            while time.monotonic() < deadline:
-                marker_after = _get_month_marker(page)
-                if marker_after and marker_after != marker_before:
-                    logger.debug("Маркер месяца после клика: %s", marker_after)
-                    return
-                page.wait_for_timeout(500)
-
-            markers = _get_all_month_markers(page)
-            logger.debug("Маркер месяца не изменился, текущие значения: %s", markers)
-
-            page.wait_for_timeout(800)
-            links_after = set(_extract_month_listing_links(page, month_list_links_selector))
-            if links_after == links_before:
-                raise RuntimeError("Не удалось дождаться смены месяца")
-
-        try:
-            run_with_retries(
-                _wait_for_change,
-                logger=logger,
-                action_name="ожидание смены месяца",
-                delays=(10.0, 10.0, 10.0),
-            )
-        except Exception:
-            logger.warning("Переход месяца может быть неочевиден, продолжаем")
-
-    page.close()
-    detail_page.close()
     return results

@@ -7,6 +7,7 @@ from playwright.sync_api import sync_playwright
 from app.config import load_config
 from app.integrations.matching import KnownIndex, MatchConfig, is_service_page
 from app.integrations.sheets import (
+    fetch_known_names,
     fetch_known_websites,
     fetch_worksheet_gid,
     write_missing_races,
@@ -42,6 +43,15 @@ def main() -> int:
         config.google_credentials_path,
         logger,
     )
+    known_names: list[str] = []
+    if config.name_match:
+        known_names = fetch_known_names(
+            config.sheet_id,
+            config.worksheet_name,
+            config.race_name_columns,
+            config.google_credentials_path,
+            logger,
+        )
     match_config = MatchConfig(
         lang_prefixes=config.canonical_lang_prefixes,
         subpage_segments=config.subpage_segments,
@@ -52,20 +62,22 @@ def main() -> int:
         cross_platform_match=config.cross_platform_match,
         cross_platform_min_slug_len=config.cross_platform_min_slug_len,
         slug_stoplist=config.slug_stoplist,
+        name_match=config.name_match,
     )
-    known_index = KnownIndex(known_websites, match_config)
+    known_index = KnownIndex(known_websites, match_config, names=known_names)
     known_urls = known_index.exact
     logger.info(
-        "Загружено известных URL: всего=%s уникальных(норм.)=%s",
+        "Загружено известных: URL=%s уникальных(норм.)=%s названий(с годом)=%s",
         len(known_websites),
         len(known_urls),
+        len(known_index.by_name),
     )
 
     state = load_state(config.state_path)
     notified_set = get_notified_set(state)
 
     source_errors: list[str] = []
-    source_results: dict[str, dict[str, tuple[str, str]]] = {}
+    source_results: dict[str, dict[str, tuple[str, str, str]]] = {}
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=config.run_headless)
@@ -95,16 +107,16 @@ def main() -> int:
             try:
                 source_results["portugalrunning.com"] = scrape_source2(
                     context,
+                    config.source2_ical_url,
+                    config.source2_ical_key,
                     config.source2_url,
-                    config.source2_next_button,
-                    config.source2_month_list_links,
-                    config.source2_event_list,
+                    config.source2_months_ahead,
                     config.source2_event_links,
-                    config.source2_location_selector,
                     config.timeout_ms,
                     config.opencage_base_url,
                     config.opencage_api_key,
                     config.opencage_delay_sec,
+                    known_index,
                     logger,
                 )
             except Exception as exc:  # noqa: BLE001
@@ -130,14 +142,14 @@ def main() -> int:
         skipped_duplicate = 0
 
         for normalized in scraped_set:
-            url, _ = url_map[normalized]
+            url, _, name = url_map[normalized]
 
             if is_service_page(url, match_config):
                 skipped_service += 1
                 logger.info("Отфильтровано (служебная страница, D): %s", url)
                 continue
 
-            match = known_index.match(url)
+            match = known_index.match(url, name or None)
             if match is not None:
                 skipped_duplicate += 1
                 category, matched = match
@@ -159,7 +171,7 @@ def main() -> int:
         )
 
         for normalized in sorted(new_candidates):
-            url, coords = url_map[normalized]
+            url, coords, _ = url_map[normalized]
             missing_candidates.append((source_name, url, coords))
             missing_rows.append((source_name, url, coords))
 

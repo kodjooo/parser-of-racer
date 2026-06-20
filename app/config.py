@@ -30,6 +30,12 @@ def _parse_csv(value: str | None, default: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(item.strip().lower() for item in value.split(",") if item.strip())
 
 
+def _parse_csv_keep_case(value: str | None, default: tuple[str, ...]) -> tuple[str, ...]:
+    if value is None or value.strip() == "":
+        return default
+    return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
 @dataclass(frozen=True)
 class Config:
     sheet_id: str
@@ -75,6 +81,11 @@ class Config:
     cross_platform_match: bool
     cross_platform_min_slug_len: int
     slug_stoplist: tuple[str, ...]
+    name_match: bool
+    race_name_columns: tuple[str, ...]
+    source2_ical_url: str
+    source2_ical_key: str
+    source2_months_ahead: int
 
 
 REQUIRED_ENV = [
@@ -173,4 +184,14 @@ def load_config() -> Config:
             DEFAULT_CROSS_PLATFORM_MIN_SLUG_LEN,
         ),
         slug_stoplist=_parse_csv(os.getenv("SLUG_STOPLIST"), DEFAULT_SLUG_STOPLIST),
+        name_match=_parse_bool(os.getenv("NAME_MATCH"), True),
+        race_name_columns=_parse_csv_keep_case(
+            os.getenv("RACE_NAME_COLUMNS"), ("RACE NAME", "RACE NAME (PT)")
+        ),
+        source2_ical_url=os.getenv(
+            "SOURCE2_ICAL_URL",
+            "https://www.portugalrunning.com/export-events/all/",
+        ),
+        source2_ical_key=os.getenv("SOURCE2_ICAL_KEY", ""),
+        source2_months_ahead=_parse_int(os.getenv("SOURCE2_MONTHS_AHEAD"), 0),
     )
