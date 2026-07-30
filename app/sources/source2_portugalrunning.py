@@ -1,85 +1,51 @@
-"""Источник 2 — portugalrunning.com (через iCal-фид EventON).
+"""Источник 2 — portugalrunning.com (через WordPress REST API + per-event iCal).
 
-Старый помесячный обход DOM сломался: сайт переделали (нет #evcal_next/#evcal_cur),
-а список на странице показывает только текущий месяц. Полный календарь доступен
-через экспорт-фид EventON:
+История: помесячный обход DOM сломался (сайт убрал навигацию), затем перестал
+работать и bulk-фид iCal (`/export-events/all/` → 500, ключ убрали со страницы).
+Устойчивый способ сейчас — два машинных эндпоинта WordPress/EventON:
 
-    https://www.portugalrunning.com/export-events/all/?key=<KEY>
+1) WP REST `/wp-json/wp/v2/ajde_events` — перечисление ВСЕХ событий
+   (id, название с годом, ссылка). Постранично, стабильно.
+2) Per-event iCal `/export-events/<id>_0/?key=<KEY>` — дата, локация, название
+   по конкретному событию. Ключ (стабильный) есть в сыром HTML страницы события.
 
-Фид (text/calendar) содержит ВСЕ события с названием (SUMMARY, с годом),
-локацией (LOCATION), датой (DTSTART) и канонической ссылкой (URL).
+Логика (дёшево → дорого):
+- Собрать все события через REST.
+- Пред-фильтр без тяжёлых запросов: год в названии (текущий/следующий) +
+  дедуп по имени против RACES (known_index) — отсекаем прошлое и известное.
+- Для оставшихся кандидатов: per-event iCal → дата (будущее), локация
+  (геокодинг, Португалия), затем запись.
 
-Логика:
-1) Получить key (из .env или со страницы календаря).
-2) Скачать iCal, распарсить, отобрать будущие события.
-3) Дедуп по названию (имя + год) через known_index — чтобы НЕ открывать
-   страницы уже известных трасс.
-4) Для новых: открыть карточку события, взять внешнюю регистрационную ссылку
-   (как делал прежний скрипт), геокодировать локацию (OpenCage, Португалия).
+Ссылка в таблицу — каноническая страница события portugalrunning.com (внешняя
+регистрационная ссылка грузится на странице через JS и в сыром HTML отсутствует).
 """
 
 import datetime
+import html
 import logging
 import re
-import time
 
 import requests
-from playwright.sync_api import BrowserContext
 
 from app.integrations.geocode import format_coordinates, geocode_location_portugal
 from app.integrations.url_normalize import normalize_url
-from app.utils.retry import run_with_retries
 
 
-# Ключ берём из пер-событийных ссылок экспорта (export-events/<id>_0/?key=...),
-# где лежит реальный глобальный ключ. ВАЖНО: страница кэшируется LiteSpeed и в
-# кэше ключ протухает (тогда /all/ отдаёт 500), поэтому грузим с cache-buster'ом.
 _KEY_RE = re.compile(r"export-events/\d+_0/\?key=([a-f0-9]+)")
+_YEAR_RE = re.compile(r"20\d{2}")
+_ICS_FIELD = lambda name, text: (  # noqa: E731
+    re.search(rf"^{name}[^:\r\n]*:(.+)$", text, re.MULTILINE)
+)
 
 
-def _resolve_key(page_url: str, logger) -> str | None:
-    response = requests.get(page_url, params={"nocache": str(int(time.time()))}, timeout=60)
-    response.raise_for_status()
-    match = _KEY_RE.search(response.text)
-    return match.group(1) if match else None
-
-
-def _parse_ical(text: str) -> list[dict[str, str]]:
-    # Развёртка свёрнутых строк (RFC 5545: продолжение начинается с пробела/таба).
-    lines: list[str] = []
-    for raw in text.split("\n"):
-        if raw[:1] in (" ", "\t") and lines:
-            lines[-1] += raw[1:]
-        else:
-            lines.append(raw.rstrip("\r"))
-
-    events: list[dict[str, str]] = []
-    current: dict[str, str] | None = None
-    for line in lines:
-        if line == "BEGIN:VEVENT":
-            current = {}
-        elif line == "END:VEVENT":
-            if current is not None:
-                events.append(current)
-            current = None
-        elif current is not None and ":" in line:
-            key, value = line.split(":", 1)
-            key = key.split(";")[0]
-            current[key] = value.replace("\\,", ",").replace("\\;", ";").strip()
-    return events
-
-
-def _event_date(event: dict[str, str]) -> datetime.date | None:
-    value = event.get("DTSTART", "")[:8]
-    try:
-        return datetime.date(int(value[:4]), int(value[4:6]), int(value[6:8]))
-    except (ValueError, IndexError):
-        return None
+def _clean_name(raw: str) -> str:
+    name = html.unescape(raw or "")
+    name = name.replace("–", "-").replace("—", "-")
+    return re.sub(r"\s+", " ", name).strip()
 
 
 def _clean_location(location: str) -> str:
-    loc = location.strip()
-    # EventON дублирует строку локации ("X, Y X, Y") — берём первую половину.
+    loc = location.replace("\\,", ",").replace("\\;", ";").strip()
     half = len(loc) // 2
     first, second = loc[:half].strip().strip(","), loc[half:].strip().strip(",")
     if first and first == second:
@@ -87,13 +53,55 @@ def _clean_location(location: str) -> str:
     return loc
 
 
+def _fetch_all_events(rest_url: str, timeout_ms: int, logger: logging.Logger) -> list[dict]:
+    events: list[dict] = []
+    page = 1
+    per_page = 100
+    timeout = max(30, timeout_ms // 1000)
+    while True:
+        resp = requests.get(
+            rest_url,
+            params={"per_page": per_page, "page": page, "orderby": "date", "order": "desc"},
+            timeout=timeout,
+        )
+        if resp.status_code == 400:
+            # WP отдаёт 400, когда page > totalpages — нормальный конец пагинации
+            break
+        resp.raise_for_status()
+        batch = resp.json()
+        if not isinstance(batch, list) or not batch:
+            break
+        events.extend(batch)
+        total_pages = int(resp.headers.get("X-WP-TotalPages", "0") or 0)
+        if total_pages and page >= total_pages:
+            break
+        page += 1
+    logger.info("source2 REST: получено событий=%s", len(events))
+    return events
+
+
+class _KeyCache:
+    def __init__(self, fallback: str) -> None:
+        self.key = fallback.strip() if fallback else ""
+
+    def get(self, event_url: str, timeout: int, logger: logging.Logger) -> str:
+        if self.key:
+            return self.key
+        try:
+            html_text = requests.get(event_url, params={"nocache": "1"}, timeout=timeout).text
+            match = _KEY_RE.search(html_text)
+            if match:
+                self.key = match.group(1)
+                logger.info("source2: ключ iCal получен со страницы события")
+        except requests.RequestException as exc:
+            logger.warning("source2: не удалось получить ключ iCal: %s", exc)
+        return self.key
+
+
 def scrape_source2(
-    context: BrowserContext,
-    ical_url: str,
+    rest_url: str,
+    export_base: str,
     ical_key: str,
-    page_url: str,
-    months_ahead: int,
-    reg_link_selector: str,
     timeout_ms: int,
     opencage_base_url: str,
     opencage_api_key: str,
@@ -102,91 +110,86 @@ def scrape_source2(
     logger: logging.Logger,
 ) -> dict[str, tuple[str, str, str]]:
     results: dict[str, tuple[str, str, str]] = {}
-
-    key = ical_key.strip() if ical_key else ""
-    if not key:
-        key = _resolve_key(page_url, logger) or ""
-        if not key:
-            logger.error("Не удалось получить ключ iCal со страницы %s", page_url)
-            return results
-        logger.info("Ключ iCal получен со страницы (cache-bust)")
-
-    response = requests.get(
-        ical_url, params={"key": key, "nocache": str(int(time.time()))}, timeout=60
-    )
-    response.raise_for_status()
-    events = _parse_ical(response.text)
-    logger.info("iCal: всего событий в фиде=%s", len(events))
+    timeout = max(30, timeout_ms // 1000)
 
     today = datetime.date.today()
-    cutoff = today + datetime.timedelta(days=months_ahead * 31) if months_ahead > 0 else None
+    allowed_years = {str(today.year), str(today.year + 1)}
 
-    detail_page = context.new_page()
-    detail_page.set_default_timeout(timeout_ms)
-    try:
-        future = 0
-        skipped_known = 0
-        for event in events:
-            event_date = _event_date(event)
-            if not event_date or event_date < today:
-                continue
-            if cutoff and event_date > cutoff:
-                continue
-            future += 1
+    events = _fetch_all_events(rest_url, timeout_ms, logger)
 
-            name = event.get("SUMMARY", "").strip()
-            canon_url = event.get("URL", "").strip()
-            location = _clean_location(event.get("LOCATION", ""))
+    key_cache = _KeyCache(ical_key)
+    skipped_year = skipped_known = skipped_past = skipped_pt = 0
+    candidates = 0
 
-            # Дедуп по названию (имя + год) — не открываем страницы известных трасс.
-            if name and known_index is not None and known_index.match_name(name):
-                skipped_known += 1
-                continue
+    for event in events:
+        name = _clean_name((event.get("title") or {}).get("rendered", ""))
+        page_url = (event.get("link") or "").strip()
+        event_id = event.get("id")
+        if not name or not page_url or event_id is None:
+            continue
 
-            if not location:
-                logger.warning("Нет локации для события %s", name or canon_url)
-                continue
+        # Пред-фильтр по году в названии: отсекаем явно прошлогодние редакции.
+        years = set(_YEAR_RE.findall(name))
+        if years and not (years & allowed_years):
+            skipped_year += 1
+            continue
 
-            coords = geocode_location_portugal(
-                location,
-                opencage_base_url,
-                opencage_api_key,
-                opencage_delay_sec,
-                logger,
-            )
-            if not coords:
-                logger.debug("Событие вне Португалии: %s (%s)", name, location)
-                continue
+        # Дедуп по имени (имя + год) против RACES — без тяжёлых запросов.
+        if known_index is not None and known_index.match_name(name):
+            skipped_known += 1
+            continue
 
-            # Внешняя регистрационная ссылка со страницы события (как раньше).
-            table_url = canon_url
-            if canon_url:
-                try:
-                    run_with_retries(
-                        lambda: detail_page.goto(canon_url, wait_until="domcontentloaded"),
-                        logger=logger,
-                        action_name="загрузка карточки события",
-                    )
-                    link = detail_page.locator(reg_link_selector)
-                    if link.count() > 0:
-                        href = link.first.get_attribute("href")
-                        if href:
-                            table_url = href
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("Не удалось открыть карточку %s: %s", canon_url, exc)
+        candidates += 1
 
-            lat, lon = coords
-            normalized = normalize_url(table_url)
-            if normalized not in results:
-                results[normalized] = (table_url, format_coordinates(lat, lon), name)
+        key = key_cache.get(page_url, timeout, logger)
+        if not key:
+            continue
+        ics_url = f"{export_base.rstrip('/')}/{event_id}_0/"
+        try:
+            ics = requests.get(ics_url, params={"key": key}, timeout=timeout)
+            ics.raise_for_status()
+            ics_text = ics.text
+        except requests.RequestException as exc:
+            logger.warning("source2: per-event iCal не получен (%s): %s", event_id, exc)
+            continue
 
-        logger.info(
-            "iCal: будущих=%s пропущено_известных_по_имени=%s к проверке=%s",
-            future,
-            skipped_known,
-            len(results),
+        dt = _ICS_FIELD("DTSTART", ics_text)
+        if not dt:
+            continue
+        digits = re.sub(r"\D", "", dt.group(1))[:8]
+        try:
+            event_date = datetime.date(int(digits[:4]), int(digits[4:6]), int(digits[6:8]))
+        except (ValueError, IndexError):
+            continue
+        if event_date < today:
+            skipped_past += 1
+            continue
+
+        loc_field = _ICS_FIELD("LOCATION", ics_text)
+        location = _clean_location(loc_field.group(1)) if loc_field else ""
+        if not location:
+            logger.warning("source2: нет локации для %s", name)
+            continue
+
+        coords = geocode_location_portugal(
+            location, opencage_base_url, opencage_api_key, opencage_delay_sec, logger
         )
-    finally:
-        detail_page.close()
+        if not coords:
+            skipped_pt += 1
+            continue
 
+        lat, lon = coords
+        normalized = normalize_url(page_url)
+        if normalized not in results:
+            results[normalized] = (page_url, format_coordinates(lat, lon), name)
+
+    logger.info(
+        "source2: событий=%s пропущено(год=%s известных=%s прошлых=%s не_PT=%s) к_проверке=%s",
+        len(events),
+        skipped_year,
+        skipped_known,
+        skipped_past,
+        skipped_pt,
+        len(results),
+    )
     return results

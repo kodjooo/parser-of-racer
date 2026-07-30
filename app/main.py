@@ -1,11 +1,18 @@
 import logging
+import re
 from datetime import datetime
 import sys
 
 from playwright.sync_api import sync_playwright
 
 from app.config import load_config
-from app.integrations.matching import KnownIndex, MatchConfig, is_service_page
+from app.integrations.matching import (
+    KnownIndex,
+    MatchConfig,
+    is_service_page,
+    normalize_event_name,
+)
+from app.integrations.url_normalize import normalize_url
 from app.integrations.sheets import (
     fetch_known_names,
     fetch_known_websites,
@@ -106,12 +113,9 @@ def main() -> int:
         if config.source2_enabled:
             try:
                 source_results["portugalrunning.com"] = scrape_source2(
-                    context,
-                    config.source2_ical_url,
+                    config.source2_rest_url,
+                    config.source2_export_base,
                     config.source2_ical_key,
-                    config.source2_url,
-                    config.source2_months_ahead,
-                    config.source2_event_links,
                     config.timeout_ms,
                     config.opencage_base_url,
                     config.opencage_api_key,
@@ -131,9 +135,9 @@ def main() -> int:
         return 1
 
     to_notify_map: dict[str, set[str]] = {}
-    missing_rows: list[tuple[str, str, str]] = []
-
-    missing_candidates: list[tuple[str, str, str]] = []
+    # Собираем новых кандидатов со всех источников с названием, чтобы затем
+    # дедуплицировать МЕЖДУ источниками (одно событие из source1 и source2).
+    all_new: list[tuple[str, str, str, str]] = []  # (source, url, coords, name)
 
     for source_name, url_map in source_results.items():
         scraped_set = set(url_map.keys())
@@ -158,8 +162,7 @@ def main() -> int:
 
             new_candidates.add(normalized)
 
-        to_notify = new_candidates
-        to_notify_map[source_name] = to_notify
+        to_notify_map[source_name] = new_candidates
 
         logger.info(
             "Источник %s: всего=%s служебных=%s дублей=%s новых=%s",
@@ -171,9 +174,31 @@ def main() -> int:
         )
 
         for normalized in sorted(new_candidates):
-            url, coords, _ = url_map[normalized]
-            missing_candidates.append((source_name, url, coords))
-            missing_rows.append((source_name, url, coords))
+            url, coords, name = url_map[normalized]
+            all_new.append((source_name, url, coords, name))
+
+    # Часть 2: дедуп между источниками — одно и то же событие, найденное и
+    # source1, и source2 (одинаковый URL, либо один забег под разными URL,
+    # опознаётся по имени+год). Оставляем первое вхождение.
+    missing_candidates: list[tuple[str, str, str]] = []
+    seen_urls: set[str] = set()
+    seen_names: set[str] = set()
+    cross_dupes = 0
+    for source_name, url, coords, name in all_new:
+        norm_url = normalize_url(url)
+        name_key = normalize_event_name(name) if (name and re.search(r"20\d{2}", name)) else ""
+        if norm_url in seen_urls or (name_key and name_key in seen_names):
+            cross_dupes += 1
+            logger.info("Кросс-источниковый дубль: %s (%s)", url, name)
+            continue
+        seen_urls.add(norm_url)
+        if name_key:
+            seen_names.add(name_key)
+        missing_candidates.append((source_name, url, coords))
+
+    if cross_dupes:
+        logger.info("Убрано кросс-источниковых дублей: %s", cross_dupes)
+    missing_rows = list(missing_candidates)
 
     if not config.dry_run:
         missing_gid = write_missing_races(

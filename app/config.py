@@ -86,6 +86,8 @@ class Config:
     source2_ical_url: str
     source2_ical_key: str
     source2_months_ahead: int
+    source2_rest_url: str
+    source2_export_base: str
 
 
 REQUIRED_ENV = [
@@ -194,4 +196,12 @@ def load_config() -> Config:
         ),
         source2_ical_key=os.getenv("SOURCE2_ICAL_KEY", ""),
         source2_months_ahead=_parse_int(os.getenv("SOURCE2_MONTHS_AHEAD"), 0),
+        source2_rest_url=os.getenv(
+            "SOURCE2_REST_URL",
+            "https://www.portugalrunning.com/wp-json/wp/v2/ajde_events",
+        ),
+        source2_export_base=os.getenv(
+            "SOURCE2_EXPORT_BASE",
+            "https://www.portugalrunning.com/export-events",
+        ),
     )
