@@ -113,9 +113,11 @@ def main() -> int:
         if config.source2_enabled:
             try:
                 source_results["portugalrunning.com"] = scrape_source2(
+                    context,
                     config.source2_rest_url,
                     config.source2_export_base,
                     config.source2_ical_key,
+                    config.source2_event_links,
                     config.timeout_ms,
                     config.opencage_base_url,
                     config.opencage_api_key,
