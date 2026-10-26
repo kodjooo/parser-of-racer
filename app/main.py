@@ -42,6 +42,13 @@ def main() -> int:
     setup_logging(config.log_level)
     logger = logging.getLogger("race_monitor")
     _log_config(logger, config)
+    import os
+    country = os.getenv("MONITOR_COUNTRY", "pt").strip().lower()
+    if country == "es":
+        from app.spain import run_spain
+        return run_spain(config)
+    if country != "pt":
+        raise ValueError("MONITOR_COUNTRY должен быть pt или es")
 
     known_websites = fetch_known_websites(
         config.sheet_id,
