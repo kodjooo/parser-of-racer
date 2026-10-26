@@ -3,8 +3,8 @@ set -euo pipefail
 
 mkdir -p /app/logs
 
-target_hour=6
-target_minute=2
+target_hour="${SCHEDULED_HOUR:-6}"
+target_minute="${SCHEDULED_MINUTE:-2}"
 run_startup="${RUN_SMOKE_ON_START:-true}"
 
 if [ "$run_startup" = "true" ]; then

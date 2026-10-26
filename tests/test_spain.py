@@ -83,3 +83,38 @@ def test_sitemap_discovery_and_incomplete_run_are_bounded():
     assert len(session.calls) == 2
     with pytest.raises(ValueError, match="лимит"):
         scrape_source(source, logging.getLogger("test"), max_pages=1, session=Session())
+
+
+def test_notifications_are_separate_from_full_candidates_and_dry_run(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from app import spain
+    sent = []
+    updates = []
+    state = tmp_path / 'es.json'
+    class Output:
+        id = 22
+        def resize(self, **kwargs): pass
+        def update(self, **kwargs): updates.append(kwargs['values'])
+    class Client:
+        def open_by_key(self, key): return object()
+    monkeypatch.setenv('ES_SOURCES_JSON', '[{"name":"fixture","url":"https://example.test","event_path_regex":"/race/"}]')
+    monkeypatch.setenv('ES_STATE_PATH', str(state))
+    monkeypatch.setenv('ES_MISSING_WORKSHEET_NAME', 'Missing races ES')
+    monkeypatch.setattr(spain.Credentials, 'from_service_account_file', lambda *a, **k: None)
+    monkeypatch.setattr(spain.gspread, 'authorize', lambda credentials: Client())
+    monkeypatch.setattr(spain, 'fetch_country_records', lambda *a, **k: [])
+    monkeypatch.setattr(spain, '_get_or_create_worksheet', lambda *a: Output())
+    monkeypatch.setattr(spain, 'scrape_source', lambda *a, **k: [{'name':'Race', 'url':'https://example.test/race',
+        'coords':'41, 2', 'country':'Spain', 'date':'2099-01-01', 'region':'Cataluña', 'city':'Badalona'}])
+    monkeypatch.setattr(spain, 'send_message', lambda *a: sent.append(a))
+    config = SimpleNamespace(worksheet_name='RACES', missing_worksheet_name='Missing races PT',
+        google_credentials_path='unused', dry_run=True, sheet_id='test', url_column='WEBSITE',
+        max_pagination_pages=5, telegram_api_id=0, telegram_api_hash='', telegram_session_path='',
+        telegram_session_string='', telegram_target='unused')
+    assert spain.run_spain(config) == 0
+    assert not updates and not sent and not state.exists()
+    config.dry_run = False
+    assert spain.run_spain(config) == 0
+    assert spain.run_spain(config) == 0
+    assert len(sent) == 1
+    assert len(updates) == 2 and updates[0] == updates[1]

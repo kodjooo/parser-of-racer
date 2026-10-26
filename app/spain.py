@@ -6,7 +6,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 from app.integrations.matching import KnownIndex, MatchConfig, normalize_event_name
 from app.integrations.url_normalize import normalize_url
-from app.integrations.sheets import _get_or_create_worksheet
+from app.integrations.sheets import _get_or_create_worksheet, fetch_country_records
+from app.integrations.state import load_state, get_notified_set, add_notified, save_state
 from app.integrations.telegram import send_message
 from app.sources.spanish_structured import scrape_source, validate_source
 
@@ -54,10 +55,8 @@ def run_spain(config):
                             else 'https://www.googleapis.com/auth/spreadsheets'])
     client = gspread.authorize(credentials)
     book = client.open_by_key(config.sheet_id)
-    sheet = book.worksheet(config.worksheet_name)
-    if 'COUNTRY' not in sheet.row_values(1):
-        raise ValueError('В общей таблице нужна колонка COUNTRY; пустые старые строки считаются Португалией')
-    known_rows = sheet.get_all_records()
+    known_rows = fetch_country_records(config.sheet_id, config.worksheet_name,
+                                       config.google_credentials_path, logger, 'es', config.url_column)
     candidates = []
     # Все источники должны успешно завершиться, прежде чем менять список/отправлять сообщение.
     for source in sources:
@@ -73,9 +72,16 @@ def run_spain(config):
                     e['region'], e['city']] for e in events)
     output.resize(rows=max(len(values), 2), cols=8)
     output.update(values=values, value_input_option='RAW')
-    if events:
+    state_path = os.getenv('ES_STATE_PATH', './data/es-notified.json')
+    state = load_state(state_path)
+    event_keys = {normalize_url(event['url']) + '|' + event['date'] for event in events}
+    new_notifications = event_keys - get_notified_set(state)
+    if new_notifications:
         send_message(config.telegram_api_id, config.telegram_api_hash, config.telegram_session_path,
                      config.telegram_session_string, config.telegram_target,
                      f'<b>{len(events)}</b> Spanish events are not in our table.\n'
                      f'https://docs.google.com/spreadsheets/d/{config.sheet_id}/edit#gid={output.id}', logger)
+    if new_notifications:
+        add_notified(state, new_notifications, 'es')
+    save_state(state_path, state)
     return 0

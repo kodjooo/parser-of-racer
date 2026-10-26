@@ -142,3 +142,47 @@ def fetch_worksheet_gid(
         return worksheet.id
 
     return run_with_retries(_action, logger=logger, action_name="чтение gid листа")
+
+
+def filter_country_records(rows, country):
+    """Пустая страна старых строк — Portugal; другие страны не входят в историю."""
+    aliases = {'': 'pt', 'pt': 'pt', 'portugal': 'pt', 'португалия': 'pt',
+               'es': 'es', 'spain': 'es', 'españa': 'es', 'espana': 'es', 'испания': 'es'}
+    selected = []
+    inherited = 'pt'
+    for row in rows:
+        raw = str(row.get('COUNTRY') or '').strip().casefold()
+        if raw or row.get('ID') or row.get('STATUS'):
+            inherited = aliases.get(raw)
+        if inherited == country:
+            selected.append(dict(row, COUNTRY=inherited))
+    return selected
+
+
+def fetch_country_records(sheet_id, worksheet_name, credentials_path, logger, country, url_column="WEBSITE"):
+    def action():
+        credentials = Credentials.from_service_account_file(
+            credentials_path, scopes=['https://www.googleapis.com/auth/spreadsheets.readonly'])
+        sheet = gspread.authorize(credentials).open_by_key(sheet_id).worksheet(worksheet_name)
+        values = sheet.get_all_values()
+        if not values:
+            return []
+        headers = values[0]
+        if country == 'es' and 'COUNTRY' not in headers:
+            raise ValueError('В общей таблице нужна колонка COUNTRY')
+        if headers.count('COUNTRY') > 1:
+            raise ValueError('Колонка COUNTRY не должна повторяться')
+        if str(url_column).isdigit():
+            index = int(url_column) - 1
+            if not 0 <= index < len(headers):
+                raise ValueError('Некорректный номер URL_COLUMN')
+            url_name = headers[index]
+        else:
+            url_name = url_column
+            if url_name not in headers:
+                raise ValueError(f'Колонка {url_name!r} не найдена')
+        rows = [dict(zip(headers, values_row)) for values_row in values[1:]]
+        for row in rows:
+            row['WEBSITE'] = row.get(url_name, '')
+        return filter_country_records(rows, country)
+    return run_with_retries(action, logger=logger, action_name='чтение истории страны')

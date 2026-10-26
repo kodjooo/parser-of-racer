@@ -2,10 +2,35 @@ services:
   race-monitor:
     build: .
     container_name: race-monitor
+    environment:
+      MONITOR_COUNTRY: pt
+      MISSING_WORKSHEET_NAME: Missing races PT
+      STATE_PATH: /app/data/notified.json
+      SCHEDULED_HOUR: ${PT_SCHEDULED_HOUR:-6}
+      SCHEDULED_MINUTE: ${PT_SCHEDULED_MINUTE:-2}
     env_file:
       - .env
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
+      - ./google-credentials.json:/app/google-credentials.json:ro
+      - ./session.session:/app/session.session
+
+  race-monitor-es:
+    profiles: [es]
+    build: .
+    env_file:
+      - .env
+    environment:
+      MONITOR_COUNTRY: es
+      ES_SOURCES_JSON: ${ES_SOURCES_JSON:-[]}
+      ES_MISSING_WORKSHEET_NAME: Missing races ES
+      ES_STATE_PATH: /app/data/notified.json
+      SCHEDULED_HOUR: ${ES_SCHEDULED_HOUR:-7}
+      SCHEDULED_MINUTE: ${ES_SCHEDULED_MINUTE:-2}
+      MAX_PAGINATION_PAGES: ${ES_MAX_PAGINATION_PAGES:-50}
+    volumes:
+      - ./data/es:/app/data
+      - ./logs/es:/app/logs
       - ./google-credentials.json:/app/google-credentials.json:ro
       - ./session.session:/app/session.session

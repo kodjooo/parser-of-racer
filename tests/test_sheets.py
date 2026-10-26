@@ -46,3 +46,35 @@ def test_get_or_create_worksheet_missing() -> None:
 
     assert result.title == "Missing races"
     assert spreadsheet.added == ["Missing races"]
+
+
+def test_shared_history_is_scoped_by_country():
+    from app.integrations.sheets import filter_country_records
+    rows = [{'ID': 'legacy'}, {'ID': 'pt', 'COUNTRY': 'Portugal'},
+            {'ID': 'es', 'COUNTRY': 'Spain'}, {'ID': 'unknown', 'COUNTRY': 'France'}]
+    assert [row['ID'] for row in filter_country_records(rows, 'pt')] == ['legacy', 'pt']
+    assert [row['ID'] for row in filter_country_records(rows, 'es')] == ['es']
+
+
+def test_variations_inherit_country_but_new_legacy_parent_is_portugal():
+    from app.integrations.sheets import filter_country_records
+    rows = [{'ID': 'es', 'COUNTRY': 'Spain'}, {'WEBSITE': 'https://example.es/child'},
+            {'ID': 'legacy', 'COUNTRY': ''}, {'WEBSITE': 'https://example.pt/child'}]
+    assert len(filter_country_records(rows, 'es')) == 2
+    assert len(filter_country_records(rows, 'pt')) == 2
+    assert filter_country_records(rows, 'es')[1]['COUNTRY'] == 'es'
+
+
+def test_country_history_preserves_numeric_url_column(monkeypatch):
+    from app.integrations import sheets
+    class Sheet:
+        def get_all_values(self):
+            return [['ID', 'COUNTRY', 'Link'], ['1', 'Spain', 'https://event.es']]
+    class Book:
+        def worksheet(self, name): return Sheet()
+    class Client:
+        def open_by_key(self, key): return Book()
+    monkeypatch.setattr(sheets.Credentials, 'from_service_account_file', lambda *a, **k: None)
+    monkeypatch.setattr(sheets.gspread, 'authorize', lambda credentials: Client())
+    result = sheets.fetch_country_records('test', 'RACES', 'unused', logging.getLogger('test'), 'es', '3')
+    assert result[0]['WEBSITE'] == 'https://event.es'

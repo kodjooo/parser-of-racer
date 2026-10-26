@@ -14,6 +14,7 @@ from app.integrations.matching import (
 )
 from app.integrations.url_normalize import normalize_url
 from app.integrations.sheets import (
+    fetch_country_records,
     fetch_known_names,
     fetch_known_websites,
     fetch_worksheet_gid,
@@ -50,22 +51,10 @@ def main() -> int:
     if country != "pt":
         raise ValueError("MONITOR_COUNTRY должен быть pt или es")
 
-    known_websites = fetch_known_websites(
-        config.sheet_id,
-        config.worksheet_name,
-        config.url_column,
-        config.google_credentials_path,
-        logger,
-    )
-    known_names: list[str] = []
-    if config.name_match:
-        known_names = fetch_known_names(
-            config.sheet_id,
-            config.worksheet_name,
-            config.race_name_columns,
-            config.google_credentials_path,
-            logger,
-        )
+    known_rows = fetch_country_records(config.sheet_id, config.worksheet_name,
+                                       config.google_credentials_path, logger, 'pt', config.url_column)
+    known_websites = [row.get('WEBSITE', '') for row in known_rows]
+    known_names = [row.get(column, '') for row in known_rows for column in config.race_name_columns] if config.name_match else []
     match_config = MatchConfig(
         lang_prefixes=config.canonical_lang_prefixes,
         subpage_segments=config.subpage_segments,
