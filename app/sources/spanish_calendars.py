@@ -30,6 +30,15 @@ class CalendarPage(HTMLParser):
             self.next_links.append(attrs.get("href", ""))
 
 
+def source_client(session=None):
+    if session is not None:
+        return session
+    client = requests.Session()
+    # Источник видит настоящее имя сервиса; под браузер не маскируемся.
+    client.headers['User-Agent'] = os.getenv('ES_HTTP_USER_AGENT') or 'RaceFinderMonitor/1.0 (+https://racefinder.es)'
+    return client
+
+
 def checked_response(response):
     response.raise_for_status()
     if response.status_code != 200:
@@ -40,7 +49,7 @@ def checked_response(response):
 
 
 def running_life(source, logger, max_pages=120, session=None):
-    client = session or requests.Session()
+    client = source_client(session)
     url = source["url"]
     origin = urlsplit(url)
     seen, events = set(), []
@@ -102,7 +111,7 @@ def rock_event(item, today):
 
 
 def rockthesport(source, logger, max_pages=120, session=None):
-    client = session or requests.Session()
+    client = source_client(session)
     today = dt.datetime.now(dt.timezone.utc).date()
     start = int(dt.datetime.combine(today, dt.time(), dt.timezone.utc).timestamp() * 1000)
     headers = {"X-API-Key": (os.getenv("ROCKTHESPORT_PUBLIC_API_KEY") or PUBLIC_WEB_KEY),

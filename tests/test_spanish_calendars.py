@@ -83,3 +83,9 @@ def test_no_sources_publish_when_second_source_fails(monkeypatch):
     config=SimpleNamespace(worksheet_name="RACES",missing_worksheet_name="Missing races PT",
         google_credentials_path="unused",dry_run=False,sheet_id="unused",url_column="WEBSITE",max_pagination_pages=120)
     with pytest.raises(ValueError,match="source failed"): spain.run_spain(config)
+
+
+def test_source_identifies_monitor_without_browser_spoofing(monkeypatch):
+    from app.sources.spanish_calendars import source_client
+    monkeypatch.delenv('ES_HTTP_USER_AGENT', raising=False)
+    assert source_client().headers['User-Agent'] == 'RaceFinderMonitor/1.0 (+https://racefinder.es)'

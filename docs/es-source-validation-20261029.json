@@ -17,19 +17,22 @@
   },
   "server": {
     "running_life": {
-      "http_status": 403,
-      "status": "blocked; no bypass attempted"
+      "pages": 81,
+      "future_events": 1616,
+      "status": "passed with transparent RaceFinderMonitor User-Agent"
     },
     "rockthesport": {
       "pages": 6,
       "all_sports": 533,
       "running_events": 303,
       "status": "passed"
-    }
+    },
+    "unique_candidates_after_dedup": 1838
   },
   "tests": {
-    "passed": 63
+    "passed": 64,
+    "docker_regression_before_identity_test": 63
   },
   "scheduled_es_enabled": false,
-  "remaining": "Running.life must permit the worker server or provide an authorised feed; final languages pending Nuno"
+  "remaining": "Final languages pending Nuno; production enablement after client review"
 }
