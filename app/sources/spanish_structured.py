@@ -110,6 +110,14 @@ def validate_source(source):
 
 def scrape_source(source, logger, max_pages=50, session=None):
     validate_source(source)
+    adapter = source.get('adapter')
+    if adapter:
+        from app.sources.spanish_calendars import APPROVED_SOURCES, running_life, rockthesport
+        approved = next((s for s in APPROVED_SOURCES if s['adapter'] == adapter), None)
+        if not approved or source['url'] != approved['url']:
+            raise ValueError('Адаптер разрешён только для подтверждённого источника')
+        return {'running_life': running_life, 'rockthesport': rockthesport}[adapter](
+            source, logger, max_pages=max_pages, session=session)
     client = session or requests.Session()
     root = source['url']
     host = urlsplit(root).hostname

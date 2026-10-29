@@ -118,3 +118,12 @@ def test_notifications_are_separate_from_full_candidates_and_dry_run(monkeypatch
     assert spain.run_spain(config) == 0
     assert len(sent) == 1
     assert len(updates) == 2 and updates[0] == updates[1]
+
+
+def test_cross_source_same_date_nearby_coords_and_optional_year():
+    a = {'name':'Carrera Barcelona 2027','date':'2027-06-15','url':'https://one.test/race',
+         'coords':'41.4500, 2.2500','city':'Badalona'}
+    b = dict(a, name='Carrera Barcelona', url='https://two.test/race', city='', coords='41.4505, 2.2505')
+    assert len(select_new_events([a,b], [])) == 1
+    assert len(select_new_events([a,dict(b,coords='40.4, -3.7')], [])) == 2
+    assert len(select_new_events([dict(a,city='',coords=''),dict(b,coords='')], [])) == 2

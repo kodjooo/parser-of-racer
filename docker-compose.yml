@@ -28,7 +28,7 @@ services:
       ES_STATE_PATH: /app/data/notified.json
       SCHEDULED_HOUR: ${ES_SCHEDULED_HOUR:-7}
       SCHEDULED_MINUTE: ${ES_SCHEDULED_MINUTE:-2}
-      MAX_PAGINATION_PAGES: ${ES_MAX_PAGINATION_PAGES:-50}
+      MAX_PAGINATION_PAGES: ${ES_MAX_PAGINATION_PAGES:-120}
     volumes:
       - ./data/es:/app/data
       - ./logs/es:/app/logs

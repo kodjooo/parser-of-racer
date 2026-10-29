@@ -2,6 +2,8 @@
 import json
 import logging
 import os
+import math
+import re
 import gspread
 from google.oauth2.service_account import Credentials
 from app.integrations.matching import KnownIndex, MatchConfig, normalize_event_name
@@ -10,6 +12,27 @@ from app.integrations.sheets import _get_or_create_worksheet, fetch_country_reco
 from app.integrations.state import load_state, get_notified_set, add_notified, save_state
 from app.integrations.telegram import send_message
 from app.sources.spanish_structured import scrape_source, validate_source
+
+
+def same_edition_location(left, right):
+    def title(event):
+        year = event['date'][:4]
+        return normalize_event_name(re.sub(r"\b" + re.escape(year) + r"\b", "", event['name']))
+    if left['date'] != right['date'] or title(left) != title(right):
+        return False
+    a, b = (normalize_event_name(e.get('city', '')) for e in (left, right))
+    if a and b:
+        return a == b
+    # При отсутствии города нужны близкие координаты: одинакового имени недостаточно.
+    try:
+        lat1, lon1 = map(float, left['coords'].split(','))
+        lat2, lon2 = map(float, right['coords'].split(','))
+        lat1, lon1, lat2, lon2 = map(math.radians, (lat1, lon1, lat2, lon2))
+        distance = 2 * 6371 * math.asin(min(1, math.sqrt(
+            math.sin((lat2-lat1)/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin((lon2-lon1)/2)**2)))
+        return distance <= 2
+    except (KeyError, ValueError, TypeError):
+        return False
 
 
 def select_new_events(candidates, known_rows):
@@ -30,12 +53,10 @@ def select_new_events(candidates, known_rows):
                            names=[r.get(k, '') for r in relevant for k in ('RACE NAME', 'RACE NAME (ES)')])
         if index.match(event['url'], event['name']):
             continue
-        identity = (normalize_event_name(event['name']), event['date'],
-                    normalize_event_name(event.get('city', '')))
         url_key = (normalize_url(event['url']), event['date'])
-        if identity in seen or url_key in seen:
+        if url_key in seen or any(same_edition_location(event, previous) for previous in out):
             continue
-        seen.update((identity, url_key))
+        seen.add(url_key)
         out.append(event)
     return out
 
