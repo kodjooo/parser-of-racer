@@ -111,3 +111,11 @@ Running.life обходится по страницам календаря (ли
 Испанский сервис имеет restart unless-stopped; TELEGRAM_NOTIFICATIONS_ENABLED=false отключает только отправку Telegram, не обновление списка новых. Неотправленные события не отмечаются отправленными.
 
 ES использует отдельный Dockerfile.es на Python 3.11 без Playwright. PT-образ не меняется; браузерные импорты выполняются только в PT-ветке main. Реальные запросы проверяются именно в ES-образе, не только в диагностическом окружении издателя.
+
+Рабочий ES checkout на сервере: `/usr/local/sheets-to-wp-racefinder/parser-of-racer-es`.
+Запуск: `docker-compose -p racefinder-es --profile es up -d --no-deps race-monitor-es`.
+Настроено 07:02 Europe/Lisbon, `RUN_SMOKE_ON_START=false`, Telegram отключён.
+Проверка 07.11.2026 в самом ES-контейнере: Running.life 1705 событий / 86 страниц,
+RockTheSport 346 беговых / 6 страниц; после дедупа в Missing races ES записано 1964.
+RACES дополнен только заголовком COUNTRY в конце; старые пустые страны — PT.
+Полная регрессия PT: 66 тестов; применимые ES-тесты без Playwright: 62.
