@@ -17,8 +17,11 @@ services:
       - ./session.session:/app/session.session
 
   race-monitor-es:
+    restart: unless-stopped
     profiles: [es]
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.es
     env_file:
       - .env
     environment:

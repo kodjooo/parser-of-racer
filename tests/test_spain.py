@@ -127,3 +127,26 @@ def test_cross_source_same_date_nearby_coords_and_optional_year():
     assert len(select_new_events([a,b], [])) == 1
     assert len(select_new_events([a,dict(b,coords='40.4, -3.7')], [])) == 2
     assert len(select_new_events([dict(a,city='',coords=''),dict(b,coords='')], [])) == 2
+
+
+def test_disabled_notifications_do_not_mark_events(monkeypatch, tmp_path):
+    import json
+    import logging
+    from types import SimpleNamespace
+    from app import spain
+    sent = []
+    state = tmp_path / 'silent.json'
+    output = SimpleNamespace(id=22, resize=lambda **k: None, update=lambda **k: None)
+    monkeypatch.setenv('ES_SOURCES_JSON', '[{"name":"fixture","url":"https://example.test","event_path_regex":"/race/"}]')
+    monkeypatch.setenv('ES_STATE_PATH', str(state))
+    monkeypatch.setenv('TELEGRAM_NOTIFICATIONS_ENABLED', 'false')
+    monkeypatch.setattr(spain.Credentials, 'from_service_account_file', lambda *a, **k: None)
+    monkeypatch.setattr(spain.gspread, 'authorize', lambda _: SimpleNamespace(open_by_key=lambda _: object()))
+    monkeypatch.setattr(spain, 'fetch_country_records', lambda *a, **k: [])
+    monkeypatch.setattr(spain, '_get_or_create_worksheet', lambda *a: output)
+    monkeypatch.setattr(spain, 'scrape_source', lambda *a, **k: [{'name':'Race', 'url':'https://example.test/race', 'coords':'', 'date':'2099-01-01', 'region':'', 'city':''}])
+    monkeypatch.setattr(spain, 'send_message', lambda *a: sent.append(a))
+    config = SimpleNamespace(worksheet_name='RACES',missing_worksheet_name='Missing races PT', google_credentials_path='unused',dry_run=False,sheet_id='test',url_column='WEBSITE',max_pagination_pages=5)
+    assert spain.run_spain(config) == 0
+    assert not sent
+    assert not spain.get_notified_set(spain.load_state(str(state)))

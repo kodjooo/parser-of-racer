@@ -97,12 +97,13 @@ def run_spain(config):
     state = load_state(state_path)
     event_keys = {normalize_url(event['url']) + '|' + event['date'] for event in events}
     new_notifications = event_keys - get_notified_set(state)
-    if new_notifications:
+    notifications_enabled = os.getenv('TELEGRAM_NOTIFICATIONS_ENABLED', 'true').lower() == 'true'
+    if new_notifications and notifications_enabled:
         send_message(config.telegram_api_id, config.telegram_api_hash, config.telegram_session_path,
                      config.telegram_session_string, config.telegram_target,
                      f'<b>{len(events)}</b> Spanish events are not in our table.\n'
                      f'https://docs.google.com/spreadsheets/d/{config.sheet_id}/edit#gid={output.id}', logger)
-    if new_notifications:
+    if new_notifications and notifications_enabled:
         add_notified(state, new_notifications, 'es')
     save_state(state_path, state)
     return 0

@@ -3,7 +3,6 @@ import re
 from datetime import datetime
 import sys
 
-from playwright.sync_api import sync_playwright
 
 from app.config import load_config
 from app.integrations.matching import (
@@ -23,8 +22,6 @@ from app.integrations.sheets import (
 from app.integrations.state import add_notified, get_notified_set, load_state, prune_known, save_state
 from app.integrations.telegram import chunk_lines, send_message
 from app.logging_setup import setup_logging
-from app.sources.source1_portugalruncalendar import scrape_source1
-from app.sources.source2_portugalrunning import scrape_source2
 
 
 def _log_config(logger: logging.Logger, config) -> None:
@@ -50,6 +47,11 @@ def main() -> int:
         return run_spain(config)
     if country != "pt":
         raise ValueError("MONITOR_COUNTRY должен быть pt или es")
+
+    # Браузер и зависимости PT не нужны HTTP-монитору Испании.
+    from playwright.sync_api import sync_playwright
+    from app.sources.source1_portugalruncalendar import scrape_source1
+    from app.sources.source2_portugalrunning import scrape_source2
 
     known_rows = fetch_country_records(config.sheet_id, config.worksheet_name,
                                        config.google_credentials_path, logger, 'pt', config.url_column)
