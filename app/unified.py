@@ -163,7 +163,7 @@ def _run_unified(config):
     logger = logging.getLogger('race_monitor.unified')
     if config.worksheet_name == config.missing_worksheet_name:
         raise ValueError('Вход и выход сборщика должны быть разными вкладками')
-    timeout = int(os.getenv('SOURCE_TIMEOUT_SEC','1800'))
+    timeout = int(os.getenv('SOURCE_TIMEOUT_SEC','3600'))
     if timeout <= 0: raise ValueError('SOURCE_TIMEOUT_SEC должен быть положительным')
     state = load_state(config.state_path)
     credentials = Credentials.from_service_account_file(config.google_credentials_path,

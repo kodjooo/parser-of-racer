@@ -108,7 +108,7 @@ PT/ES отправляется существующему TELEGRAM_TARGET; от�
 догоняет пропущенное расписание и не повторяет завершённый день после рестарта.
 Общий Docker-сервис включён по умолчанию, прежние PT/ES — только в профилях.
 Docker race-monitor-unified: restart unless-stopped, init, shm 1gb, healthcheck
-свежести прохода 36ч. Процесс источника ограничен 1800с; остальные продолжают работу.
+свежести прохода 36ч. Процесс источника ограничен 3600с; остальные продолжают работу.
 Python 3.11/Debian 13 и Playwright 1.56 вынесены в Dockerfile.unified и
 requirements-unified.txt: ES сохраняет совместимое TLS-окружение, PT получает
 Chromium с совпадающим PLAYWRIGHT_BROWSERS_PATH. Старые образы не меняются.
