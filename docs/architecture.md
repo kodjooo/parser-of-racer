@@ -83,3 +83,31 @@ RaceFinderMonitor. Fallback на чужие браузерные идентиф�
 Испанский сервис имеет restart unless-stopped; TELEGRAM_NOTIFICATIONS_ENABLED=false отключает только отправку Telegram, не обновление списка новых. Неотправленные события не отмечаются отправленными.
 
 ES использует отдельный Dockerfile.es на Python 3.11 без Playwright. PT-образ не меняется; браузерные импорты выполняются только в PT-ветке main. Реальные запросы проверяются именно в ES-образе, не только в диагностическом окружении издателя.
+
+
+## Общий режим PT/ES (2026-11-10)
+
+`app/main.py` маршрутизирует MONITOR_COUNTRY=both в `app/unified.py`.
+Четыре адаптера изолированы процессами `app/source_worker.py`: два прежних PT
+(Playwright + REST/iCal/OpenCage) и два HTTP ES. COUNTRY ограничивает сравнение
+с общей RACES, повторные события удаляются внутри страны. Входная RACES не меняется.
+Успешный источник заменяет свой кэш, ошибочный сохраняет прежние результаты.
+Список кандидатов записывается одной заменой диапазона A:H в Missing races без clear().
+
+Единый JSON имеет schema=1, notified, legacy_notified, полные legacy_history,
+sources (events/last_success), last_run_at и last_digest_date. Записи атомарные
+(tmp + fsync + replace), проход защищён flock. Мигратор сохраняет обе исходные
+истории и оба листа; прежний PT gid становится общим, старые листы архивируются.
+Счётчики новых строятся отдельно от вывода кандидатов. Один компактный дайджест
+PT/ES отправляется существующему TELEGRAM_TARGET; отметки — только после доставки.
+Отрицательные Telegram ID разбираются через telethon.utils.resolve_id.
+
+Планировщик app/scheduler.py сохраняет день завершённого прохода в schedule.json,
+догоняет пропущенное расписание и не повторяет завершённый день после рестарта.
+Docker race-monitor-unified: restart unless-stopped, init, shm 1gb, healthcheck
+свежести прохода 36ч. Процесс источника ограничен 1800с; остальные продолжают работу.
+Python 3.11/Debian 13 и Playwright 1.56 вынесены в Dockerfile.unified и
+requirements-unified.txt: ES сохраняет совместимое TLS-окружение, PT получает
+Chromium с совпадающим PLAYWRIGHT_BROWSERS_PATH. Старые образы не меняются.
+DRY_RUN читает сайты/таблицу, пишет только локальный диагностический отчёт;
+таблицы, основную историю и Telegram не меняет. Издатель/WordPress не задействованы.

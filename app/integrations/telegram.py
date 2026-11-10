@@ -5,7 +5,7 @@ from collections.abc import Iterable
 
 from telethon import TelegramClient
 from telethon.sessions import StringSession
-from telethon.tl.types import PeerChannel, PeerChat
+from telethon.utils import resolve_id
 
 from app.utils.retry import run_with_retries
 
@@ -45,16 +45,10 @@ def send_message(
     text: str,
     logger: logging.Logger,
 ) -> None:
-    def _resolve_target() -> PeerChat | PeerChannel | str:
-        if not target:
-            return target
-        if target.startswith("@"):
-            return target
-        if target.lstrip("-").isdigit():
-            chat_id = int(target)
-            if str(chat_id).startswith("-100"):
-                return PeerChannel(abs(chat_id))
-            return PeerChat(abs(chat_id))
+    def _resolve_target():
+        if target and target.lstrip('-').isdigit():
+            raw_id, peer_type = resolve_id(int(target))
+            return peer_type(raw_id)
         return target
 
     async def _send() -> None:

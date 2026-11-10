@@ -42,11 +42,14 @@ def main() -> int:
     _log_config(logger, config)
     import os
     country = os.getenv("MONITOR_COUNTRY", "pt").strip().lower()
+    if country == "both":
+        from app.unified import run_unified
+        return run_unified(config)
     if country == "es":
         from app.spain import run_spain
         return run_spain(config)
     if country != "pt":
-        raise ValueError("MONITOR_COUNTRY должен быть pt или es")
+        raise ValueError("MONITOR_COUNTRY должен быть pt, es или both")
 
     # Браузер и зависимости PT не нужны HTTP-монитору Испании.
     from playwright.sync_api import sync_playwright

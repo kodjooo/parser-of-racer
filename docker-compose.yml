@@ -37,3 +37,39 @@ services:
       - ./logs/es:/app/logs
       - ./google-credentials.json:/app/google-credentials.json:ro
       - ./session.session:/app/session.session
+
+  race-monitor-unified:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+    image: racefinder-monitor-unified:latest
+    container_name: race-monitor-unified
+    restart: unless-stopped
+    init: true
+    shm_size: '1gb'
+    profiles: [unified]
+    env_file:
+      - .env
+    environment:
+      MONITOR_COUNTRY: both
+      TZ: Europe/Moscow
+      MISSING_WORKSHEET_NAME: Missing races
+      STATE_PATH: /app/data/unified.json
+      SCHEDULED_HOUR: ${UNIFIED_SCHEDULED_HOUR:-0}
+      SCHEDULED_MINUTE: ${UNIFIED_SCHEDULED_MINUTE:-15}
+      RUN_SMOKE_ON_START: 'false'
+      TELEGRAM_NOTIFICATIONS_ENABLED: ${TELEGRAM_NOTIFICATIONS_ENABLED:-true}
+      ES_SOURCES_JSON: ${ES_SOURCES_JSON:-[]}
+      ES_MAX_PAGINATION_PAGES: ${ES_MAX_PAGINATION_PAGES:-120}
+      SOURCE_TIMEOUT_SEC: ${SOURCE_TIMEOUT_SEC:-1800}
+    volumes:
+      - ./data/unified:/app/data
+      - ./logs/unified:/app/logs
+      - ./google-credentials.json:/app/google-credentials.json:ro
+      - ./session.session:/app/session.session
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.health"]
+      interval: 5m
+      timeout: 10s
+      retries: 2
+      start_period: 2h

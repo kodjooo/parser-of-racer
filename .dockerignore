@@ -6,3 +6,9 @@ __pycache__
 .gitignore
 .vscode
 .idea
+
+data
+logs
+*.session*
+google-credentials*.json
+.env.*

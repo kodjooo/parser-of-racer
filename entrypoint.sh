@@ -3,6 +3,10 @@ set -euo pipefail
 
 mkdir -p /app/logs
 
+if [ "${MONITOR_COUNTRY:-pt}" = "both" ]; then
+  exec python -m app.scheduler
+fi
+
 target_hour="${SCHEDULED_HOUR:-6}"
 target_minute="${SCHEDULED_MINUTE:-2}"
 run_startup="${RUN_SMOKE_ON_START:-true}"

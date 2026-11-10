@@ -1,0 +1,10 @@
+FROM python:3.11-slim-trixie
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 TZ=Europe/Moscow PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+WORKDIR /app
+COPY requirements-es.txt requirements-unified.txt ./
+RUN pip install --no-cache-dir -r requirements-unified.txt && python -m playwright install --with-deps chromium
+COPY app ./app
+COPY tests ./tests
+COPY Dockerfile.es ./Dockerfile.es
+COPY entrypoint.sh /app/entrypoint.sh
+CMD ["bash", "/app/entrypoint.sh"]
