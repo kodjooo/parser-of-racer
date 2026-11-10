@@ -1,5 +1,6 @@
 services:
   race-monitor:
+    profiles: [legacy-pt]
     build: .
     container_name: race-monitor
     environment:
@@ -52,7 +53,6 @@ services:
     restart: unless-stopped
     init: true
     shm_size: '1gb'
-    profiles: [unified]
     env_file:
       - .env
     environment:
@@ -74,7 +74,7 @@ services:
       - ./session.session:/app/session.session
     healthcheck:
       test: ["CMD", "python", "-m", "app.health"]
-      interval: 5m
+      interval: 1m
       timeout: 10s
       retries: 2
       start_period: 2h

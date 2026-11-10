@@ -128,9 +128,8 @@ def merge_results(state, collector, now):
             errors[source] = str(exc)[:250]
             results[source] = state['sources'].get(source, {}).get('events', [])
             counts[source] = len(results[source])
-    # Свежие результаты получают приоритет перед сохранёнными при кросс-дедупликации.
-    events = [e for source in SOURCES if source not in errors for e in results[source]]
-    events += [e for source in SOURCES if source in errors for e in results[source]]
+    # Постоянный порядок сохраняет выбранный URL события при временном сбое источника.
+    events = [e for source in SOURCES for e in results[source]]
     events += state.get('legacy_rows', [])
     return events, errors, counts
 

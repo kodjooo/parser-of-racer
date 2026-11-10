@@ -5,7 +5,8 @@
 ## Общий рабочий режим PT/ES
 
 Используйте `race-monitor-unified` (`MONITOR_COUNTRY=both`). Старые PT/ES-сервисы
-оставлены для совместимости и отката; одновременно с общим их не запускают.
+оставлены в профилях legacy-pt/es для отката; одновременно с общим их не запускают.
+Обычный `docker-compose up -d` запускает только общий монитор.
 Общий сервис разворачивается отдельно от издателя и не обращается к WordPress.
 Входная `RACES` доступна только для чтения. Результаты — существующая `Missing races`:
 COUNTRY, Источник, Название, Дата, Ссылка, Координаты, Регион, Город.
@@ -16,13 +17,13 @@ COUNTRY, Источник, Название, Дата, Ссылка, Коорд�
 `TELEGRAM_SESSION_PATH=/app/session.session`. Не коммитьте доступы и историю.
 
 ```bash
-docker-compose --profile unified build race-monitor-unified
+docker-compose build race-monitor-unified
 # Регрессия в том же образе:
 docker run --rm --entrypoint python racefinder-monitor-unified:latest -m pytest -q
 # Проверка всех сайтов без записи таблиц/истории и без Telegram:
-docker-compose --profile unified run --rm -e DRY_RUN=true race-monitor-unified python -m app.main
+docker-compose run --rm -e DRY_RUN=true race-monitor-unified python -m app.main
 # Ежедневная работа, только этот сервис:
-docker-compose --profile unified up -d --no-deps race-monitor-unified
+docker-compose up -d --no-deps race-monitor-unified
 ```
 
 Расписание общего режима: **00:15 Europe/Moscow**, без запуска при старте.

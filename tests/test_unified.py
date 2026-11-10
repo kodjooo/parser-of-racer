@@ -118,3 +118,15 @@ def test_dry_run_never_writes_sheet_state_or_message(monkeypatch,tmp_path):
     u,c,writer,sender=setup_runtime(monkeypatch,tmp_path);c.dry_run=True
     assert u.run_unified(c)==0
     writer.assert_not_called();sender.assert_not_called();assert not __import__('pathlib').Path(c.state_path).exists()
+
+
+def test_cached_source_keeps_event_identity_during_temporary_failure():
+    a=event('Spain',url='https://running.life/es/carrera/run-2026')
+    b=event('Spain',url='https://web.rockthesport.com/es/event/run-2026')
+    state={'sources':{'es_life':{'events':[a],'last_success':'before'}},'notified':{event_key(a):{}}}
+    def collect(source):
+        if source=='es_life':raise RuntimeError('unavailable')
+        return [b] if source=='es_rock' else []
+    candidates,errors,_=merge_results(state,collect,'now')
+    missing=missing_events(candidates,[],config())
+    assert errors and missing==[a] and was_notified(missing[0],state)
