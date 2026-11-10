@@ -130,3 +130,22 @@ def test_cached_source_keeps_event_identity_during_temporary_failure():
     candidates,errors,_=merge_results(state,collect,'now')
     missing=missing_events(candidates,[],config())
     assert errors and missing==[a] and was_notified(missing[0],state)
+
+
+def test_normal_unified_run_resolves_registration_links_before_writing(monkeypatch,tmp_path):
+    import json
+    from app.sources import spanish_calendars
+    u,c,writer,sender=setup_runtime(monkeypatch,tmp_path)
+    life=event('Spain',url='https://running.life/es/carrera/prueba',name='Prueba',date='2027-01-30')
+    rock=event('Spain',url='https://web.rockthesport.com/es/event/prueba-2027',name='Prueba 2027',date='2027-01-30');rock['coords']='41.4, 2.1';rock['city']=''
+    monkeypatch.setattr(u,'collect_worker',lambda source,timeout:[life] if source=='es_life' else [rock] if source=='es_rock' else [])
+    payload={'@type':'SportsEvent','name':'Prueba','url':life['url'],'startDate':life['date'],'location':{'address':{'addressCountry':'ES'}}}
+    html='<script type="application/ld+json">'+json.dumps(payload)+'</script><a href="'+rock['url']+'">Inscripción</a>'
+    session=Mock();session.get.return_value=Mock(status_code=200,text=html,content=b'html')
+    session_client=session
+    monkeypatch.setattr(spanish_calendars,'source_client',lambda session=None:session_client)
+    assert u.run_unified(c)==0
+    assert len(writer.call_args.args[2])==1 and sender.call_count==1
+    state=u.load_state(c.state_path)
+    assert len(state['notified'])==1 and state['es_identity_evidence']
+    session.get.assert_called_once()

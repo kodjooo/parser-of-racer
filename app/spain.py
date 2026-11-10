@@ -12,12 +12,15 @@ from app.integrations.sheets import _get_or_create_worksheet, fetch_country_reco
 from app.integrations.state import load_state, get_notified_set, add_notified, save_state
 from app.integrations.telegram import send_message
 from app.sources.spanish_structured import scrape_source, validate_source
+from app.es_identity import same_identity, identity_urls
 
 
 def same_edition_location(left, right):
     def title(event):
         year = event['date'][:4]
         return normalize_event_name(re.sub(r"\b" + re.escape(year) + r"\b", "", event['name']))
+    if same_identity(left, right):
+        return True
     if left['date'] != right['date'] or title(left) != title(right):
         return False
     a, b = (normalize_event_name(e.get('city', '')) for e in (left, right))
@@ -51,7 +54,7 @@ def select_new_events(candidates, known_rows):
                 relevant.append(row)
         index = KnownIndex([r.get('WEBSITE', '') for r in relevant], MatchConfig(),
                            names=[r.get(k, '') for r in relevant for k in ('RACE NAME', 'RACE NAME (ES)')])
-        if index.match(event['url'], event['name']):
+        if any(index.match(url, event['name']) for url in [event['url']] + identity_urls(event)):
             continue
         url_key = (normalize_url(event['url']), event['date'])
         if url_key in seen or any(same_edition_location(event, previous) for previous in out):

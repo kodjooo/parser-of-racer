@@ -19,6 +19,7 @@ from app.integrations.sheets import filter_country_records, _get_or_create_works
 from app.integrations.telegram import send_message
 from app.integrations.url_normalize import normalize_url
 from app.spain import select_new_events
+from app.es_identity import enrich_identities, identity_urls
 
 HEADERS = ['COUNTRY', 'Источник', 'Название', 'Дата', 'Ссылка', 'Координаты', 'Регион', 'Город']
 FIELDS = ['country', 'source', 'name', 'date', 'url', 'coords', 'region', 'city']
@@ -53,13 +54,14 @@ def load_state(path):
 
 
 def was_notified(event, state):
-    if event_key(event) in state.get('notified', {}):
-        return True
+    for url in [event['url']] + identity_urls(event):
+        if event_key(dict(event, url=url)) in state.get('notified', {}):
+            return True
     country = 'es' if event['country'] == 'Spain' else 'pt'
     old = state.get('legacy_notified', {}).get(country, {})
-    url = normalize_url(event['url'])
     # Старые PT-ключи не содержали даты; сохраняем их прежнюю семантику.
-    return url in old or (url + '|' + event.get('date', '')) in old
+    return any(normalize_url(value) in old or (normalize_url(value) + '|' + event.get('date', '')) in old
+               for value in [event['url']] + identity_urls(event))
 
 
 def collect_worker(source, timeout):
@@ -175,11 +177,13 @@ def _run_unified(config):
     rows = [dict(zip(values[0], row)) for row in values[1:]]
     now = dt.datetime.now(dt.timezone.utc).isoformat()
     candidates, errors, counts = merge_results(state, lambda source: collect_worker(source,timeout), now)
+    candidates, identity_report = enrich_identities(candidates, state.setdefault('es_identity_evidence', {}), logger)
     events = missing_events(candidates, rows, config)
     new = [event for event in events if not was_notified(event,state)]
     report = {'started_at':now, 'sources':counts, 'errors':errors, 'missing':len(events),
               'by_country':{c:sum(e['country']==c for e in events) for c in ('Portugal','Spain')},
               'new_notifications':len(new), 'dry_run':config.dry_run, 'telegram_sent':False}
+    report['es_identity'] = identity_report
     if config.dry_run:
         report['events']=events
         report['collected_sources']=state['sources']
