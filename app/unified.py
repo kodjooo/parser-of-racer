@@ -116,11 +116,13 @@ def merge_results(state, collector, now):
     results, errors, counts = {}, {}, {}
     for source in SOURCES:
         try:
+            logging.getLogger('race_monitor.unified').info('Сбор источника %s',source)
             events = collector(source)
             if not events and state['sources'].get(source, {}).get('events'):
                 raise ValueError('Источник неожиданно вернул пустой список')
             state['sources'][source] = {'events': events, 'last_success': now}
             results[source] = events; counts[source] = len(events)
+            logging.getLogger('race_monitor.unified').info('%s: получено %s событий',source,len(events))
         except Exception as exc:
             logging.getLogger('race_monitor.unified').exception('Ошибка источника %s', source)
             errors[source] = str(exc)[:250]

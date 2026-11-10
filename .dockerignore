@@ -12,3 +12,6 @@ logs
 *.session*
 google-credentials*.json
 .env.*
+
+ops-backup*/
+*.session*

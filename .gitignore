@@ -11,3 +11,6 @@ logs/
 data/
 .DS_Store
 .cursor/
+
+ops-backup*/
+*.session*
