@@ -59,6 +59,16 @@ python -m app.migrate_unified --pt-state /legacy-pt/notified.json --es-state /le
 состояния запрещена. Автоматического отката листов нет: при ошибке необходимо
 проверить архивы, прежде чем включать расписание.
 
+Рабочий общий checkout на сервере: `/usr/local/sheets-to-wp-racefinder/parser-of-racer-unified`,
+ветка `ma/unified-monitor-20261110`, контейнер `race-monitor-unified`.
+Перенос 10.11.2026 проверен: 338 записей прежней истории сохранены, PT/ES-архивы
+скрыты, в общей вкладке 258 PT + 1863 ES. Доставлен один дайджест, повторная
+обработка и перезапуск сохранили результат без второго сообщения.
+Издатель и RACES не изменены. Подробности: `docs/unified-monitor-verification-20261110.json`.
+Проверка статуса: `docker inspect race-monitor-unified`; расписания:
+`docker logs --tail 10 race-monitor-unified`. Закрытые резервные копии —
+`data/unified/migration-backup/` и `ops-backup-20261110/` (не в Git).
+
 Ниже описаны прежние раздельные режимы; их расписания не относятся к общему.
 
 ## Структура проекта

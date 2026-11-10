@@ -1,0 +1,49 @@
+{
+  "verified_at": "2026-11-10T10:59:30.982177+00:00",
+  "crawl_started_at": "2026-11-10T10:23:16.555662+00:00",
+  "monitor_commit": "d7398185115cb3a51a6394759f424c013fbad1de",
+  "source_counts": {
+    "pt_calendar": 331,
+    "pt_running": 253,
+    "es_life": 1620,
+    "es_rock": 328
+  },
+  "errors": {},
+  "by_country": {
+    "Portugal": 258,
+    "Spain": 1863
+  },
+  "output_rows": 2121,
+  "sheet_gid": 580722196,
+  "legacy_pt_records": 338,
+  "legacy_es_records": 0,
+  "raw_history_preserved": true,
+  "races_unchanged": true,
+  "repeat_output_identical": true,
+  "repeat_notification_history_identical": true,
+  "telegram_messages_delivered": 1,
+  "snapshot_applied_without_second_crawl": true,
+  "restart_test_passed": true,
+  "docker_health": "healthy",
+  "restart_policy": "unless-stopped",
+  "schedule": "00:15 Europe/Moscow",
+  "old_monitors_disabled": true,
+  "publisher_unchanged": true,
+  "no_processing_on_restart": true,
+  "source_timeout_seconds": 3600,
+  "tests_passed": 79,
+  "next_run": "2026-11-11T00:15:00+03:00",
+  "archives": {
+    "pt_rows": 57,
+    "es_rows": 1861,
+    "pt_history": 338,
+    "es_history": 0,
+    "legacy_unmapped_rows": 0,
+    "sheet_gid": 580722196,
+    "pt_backup_gid": 1185610770,
+    "es_archive_gid": 9764588,
+    "legacy_history_preserved_exactly": true
+  },
+  "sheet_url": "https://docs.google.com/spreadsheets/d/12fpkAlmHD7acDyE_jo_pvJ0-J5FOpVcGyapj0-SWOkE/edit#gid=580722196",
+  "verification_method": "Полный реальный сбор в DRY_RUN, два применения свежего результата, реальная доставка Telegram, перезапуск контейнера."
+}
