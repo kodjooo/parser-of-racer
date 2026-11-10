@@ -1,0 +1,105 @@
+{
+  "verified_at": "2026-11-10T13:00:32.104174+00:00",
+  "before": 2121,
+  "after": 2110,
+  "removed_rows": 11,
+  "by_country": {
+    "Portugal": 258,
+    "Spain": 1852
+  },
+  "confirmed_pairs": 11,
+  "unresolved_pairs": 0,
+  "pairs": [
+    {
+      "life": "https://running.life/es/carrera/ponle-freno-madrid",
+      "rock": "https://web.rockthesport.com/es/event/ponle-freno-madrid-2026",
+      "date": "2026-11-15",
+      "reason": "confirmed_registration"
+    },
+    {
+      "life": "https://running.life/es/carrera/tus-kilometros-nos-dan-vida-mallorca",
+      "rock": "https://web.rockthesport.com/es/event/tus-kilometros-nos-dan-vida-mallorca",
+      "date": "2026-12-13",
+      "reason": "confirmed_registration"
+    },
+    {
+      "life": "https://running.life/es/carrera/campeonato-de-espana-snowrunning-larra-belagua-elur-lasterketa",
+      "rock": "https://web.rockthesport.com/es/event/httpssnowrunninglarrabelaguacom",
+      "date": "2027-01-16",
+      "reason": "confirmed_registration"
+    },
+    {
+      "life": "https://running.life/es/carrera/granadella-trail-costa-blanca",
+      "rock": "https://web.rockthesport.com/es/event/granadella-trail-2027",
+      "date": "2027-01-30",
+      "reason": "confirmed_registration"
+    },
+    {
+      "life": "https://running.life/es/carrera/travessa-trail",
+      "rock": "https://web.rockthesport.com/es/event/travessa-trail-2027",
+      "date": "2027-02-19",
+      "reason": "confirmed_registration"
+    },
+    {
+      "life": "https://running.life/es/carrera/xtrail-series-run-mataro",
+      "rock": "https://web.rockthesport.com/es/event/xtrail-series-run-mataro-2027",
+      "date": "2027-02-21",
+      "reason": "confirmed_registration"
+    },
+    {
+      "life": "https://running.life/es/carrera/trail-guzman-el-bueno",
+      "rock": "https://web.rockthesport.com/es/event/trail-guzman-el-bueno-2027",
+      "date": "2027-03-13",
+      "reason": "confirmed_registration"
+    },
+    {
+      "life": "https://running.life/es/carrera/llanera-race",
+      "rock": "https://web.rockthesport.com/es/event/llanera-race",
+      "date": "2027-03-21",
+      "reason": "confirmed_registration"
+    },
+    {
+      "life": "https://running.life/es/carrera/salomon-run-barcelona",
+      "rock": "https://web.rockthesport.com/es/event/salomon-run-barcelona-2027",
+      "date": "2027-04-10",
+      "reason": "confirmed_registration"
+    },
+    {
+      "life": "https://running.life/es/carrera/xtrail-series-run-orrius",
+      "rock": "https://web.rockthesport.com/es/event/xtrail-series-run-orrius-2027",
+      "date": "2027-04-11",
+      "reason": "confirmed_registration"
+    },
+    {
+      "life": "https://running.life/es/carrera/15k-y-75k-valencia-abierta-al-mar",
+      "rock": "https://web.rockthesport.com/es/event/15k-valencia-abierta-al-mar-2027",
+      "date": "2027-04-25",
+      "reason": "confirmed_registration"
+    }
+  ],
+  "branded_confirmations": [
+    {
+      "url": "https://inscripciones.mychip.es/es/evento/granadella-trail-2027",
+      "target": "https://web.rockthesport.com/es/event/granadella-trail-2027",
+      "event_id": "65813"
+    }
+  ],
+  "repeat_identical": true,
+  "raw_sources_replay_matches": true,
+  "notification_history_unchanged": true,
+  "legacy_pt_history_preserved": 338,
+  "active_notification_records_preserved": 2098,
+  "races_unchanged": true,
+  "annual_editions_preserved": 4,
+  "telegram_sent": false,
+  "sheet_gid": 580722196,
+  "sheet_url": "https://docs.google.com/spreadsheets/d/12fpkAlmHD7acDyE_jo_pvJ0-J5FOpVcGyapj0-SWOkE/edit#gid=580722196",
+  "monitor_commit": "c17f70e31cd36a99fdc16352c9076f4fb31c87e2",
+  "tests_passed": 99,
+  "runtime_healthy": true,
+  "runtime_source_hashes_match": true,
+  "state_unchanged_on_deploy": true,
+  "publisher_unchanged": true,
+  "schedule_unchanged": "00:15 Europe/Moscow",
+  "deployment_verified_at": "2026-11-10T13:05:21.178846+00:00"
+}
