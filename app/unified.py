@@ -150,14 +150,23 @@ def write_rows(book, target, events, logger):
 
 
 def digest_message(events, new, errors, link, date):
-    lines = [f'<b>RaceFinder — {date}</b>']
-    for country, label in [('Portugal','PT'), ('Spain','ES')]:
-        lines.append(f'{label}: {sum(e["country"]==country for e in events)} candidates, {sum(e["country"]==country for e in new)} newly detected')
+    lines = [f'<b>RaceFinder — {date}</b>', f'New races: <b>{len(new)}</b>']
+    assigned = set()
+    for country, label in [('Portugal', 'Portugal'), ('Spain', 'Spain')]:
+        lines.append('\n<b>' + label + '</b>')
+        for source, (source_country, name) in SOURCES.items():
+            if source_country != country:
+                continue
+            matches = [i for i, event in enumerate(new) if i not in assigned and event['country'] == country
+                       and (event.get('_source_id') == source or event.get('source') == name)]
+            assigned.update(matches)
+            lines.append('• ' + html.escape(name) + ': ' + str(len(matches)))
+    if len(assigned) < len(new):
+        lines.append('Other sources: ' + str(len(new) - len(assigned)))
     if errors:
-        lines.append('Some sources failed; their previous results were retained:')
+        lines.append('\nSources unavailable; previous results retained:')
         lines.extend('• '+html.escape(SOURCES[s][1])+': '+html.escape(message) for s,message in errors.items())
-    else: lines.append('All 4 sources completed successfully.')
-    lines.append(f'<a href="{html.escape(link, quote=True)}">View the combined event list</a>')
+    lines.append(f'\n<a href="{html.escape(link, quote=True)}">Open Missing races</a>')
     return '\n'.join(lines)
 
 

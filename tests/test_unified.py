@@ -41,7 +41,8 @@ def test_source_failure_preserves_only_its_previous_results_and_others_run():
 
 def test_one_digest_contains_both_countries_and_failure():
     text=digest_message([event(),event('Spain')],[event()],{'pt_calendar':'bad <source>'},'https://example.test','2026-11-10')
-    assert 'PT:' in text and 'ES:' in text and text.count('<a href=')==1 and '&lt;source&gt;' in text
+    assert 'Portugal' in text and 'Spain' in text and text.count('<a href=')==1 and '&lt;source&gt;' in text
+    assert 'New races: <b>1</b>' in text and 'candidates' not in text and 'newly detected' not in text
 
 
 def test_table_replaces_data_without_clear_and_preserves_tail_shape(monkeypatch):
@@ -149,3 +150,15 @@ def test_normal_unified_run_resolves_registration_links_before_writing(monkeypat
     state=u.load_state(c.state_path)
     assert len(state['notified'])==1 and state['es_identity_evidence']
     session.get.assert_called_once()
+
+
+def test_digest_counts_new_unique_events_by_source_not_open_backlog():
+    new=[]
+    for source,(country,label) in SOURCES.items():
+        new.append(dict(event(country,url='https://race.test/'+source),source=label,_source_id=source))
+    text=digest_message([event()]*2000,new,{},'https://example.test','2026-11-10')
+    assert 'New races: <b>4</b>' in text and '2000' not in text
+    for _,label in SOURCES.values():assert label+': 1' in text
+    empty=digest_message([event()]*2000,[],{},'https://example.test','2026-11-10')
+    assert 'New races: <b>0</b>' in empty
+    for _,label in SOURCES.values():assert label+': 0' in empty
